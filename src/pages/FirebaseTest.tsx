@@ -30,6 +30,23 @@ export default function FirebaseTest() {
           timestamp: serverTimestamp(),
         });
 
+
+        let logActive = false;
+        const baseTime = new Date();
+        if( logActive ){
+            for (let i = 1; i <= 20; i++) {
+                const customTime = new Date(baseTime.getTime() + i * 60000);
+    
+                await addDoc(collection(db, "survey"), {
+                    target: '대행서비스 신청 페이지',
+                    name: `김도한${i}`,
+                    phone: `0102546${(6499 + i).toString()}`,
+                    pharmacy: `약국${i}`,
+                    created_at: customTime,
+                });
+            }
+        }
+        
         setStatus("테스트 완료! (성공)");
         addLog(`3. 성공! 문서 ID: ${docRef.id}`);
       } catch (error: any) {

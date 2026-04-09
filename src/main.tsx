@@ -4,8 +4,8 @@ import { createHashRouter, RouterProvider } from 'react-router-dom' // createHas
 import App from './App.tsx'
 import FirebaseTest from './pages/FirebaseTest.tsx'
 import './index.css'
+import AdminExcelPage from './pages/AdminExcelPage.tsx'
 
-// createBrowserRouter 대신 createHashRouter 사용
 const router = createHashRouter([
   {
     path: "/",
@@ -15,10 +15,12 @@ const router = createHashRouter([
     path: "/test",
     element: <FirebaseTest />,
   },
+  {
+    path: "/excel-down",
+    element: <AdminExcelPage />,
+  },
 ]);
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <RouterProvider router={router} />
-  </StrictMode>,
-)
+  <RouterProvider router={router} />
+);

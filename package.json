@@ -12,8 +12,14 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^9.0.0",
+    "@mui/x-data-grid": "^9.0.1",
+    "@tanstack/react-table": "^8.21.3",
+    "antd": "^6.3.5",
     "firebase": "^12.11.0",
-    "lucide-react": "^1.7.0",
+    "lucide-react": "^1.8.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.14.0"
