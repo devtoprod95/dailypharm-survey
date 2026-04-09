@@ -51,7 +51,7 @@ export default function App() {
   ]
 
   return (
-    <div className="min-h-screen bg-white overflow-x-hidden" style={{ fontFamily: "'Pretendard', -apple-system, sans-serif" }}>
+    <div className="bg-white overflow-x-hidden" style={{ minHeight: '100svh', fontFamily: "'Pretendard', -apple-system, sans-serif" }}>
 
       {/* ───── HERO ───── */}
       <section
