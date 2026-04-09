@@ -1,13 +1,17 @@
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom"; 
 import { db } from "../lib/firebase";
 import { 
   collection, 
   getDocs, 
+  getDoc, 
+  doc, 
   query, 
   orderBy, 
   limit, 
   startAfter, 
   endBefore,
+  startAt, // 추가
   limitToLast,
   where,
   getCountFromServer
@@ -28,26 +32,28 @@ interface SurveyData {
 }
 
 function ExcelPageContent() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { message: msg, modal } = App.useApp();
+  
   const [data, setData] = useState<SurveyData[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
+
+  const [searchType, setSearchType] = useState<string>(searchParams.get("type") || "name");
+  const [searchText, setSearchText] = useState<string>(searchParams.get("text") || "");
   
-  const [firstVisible, setFirstVisible] = useState<any>(null);
-  const [lastVisible, setLastVisible] = useState<any>(null);
+  const currentPage = Number(searchParams.get("page")) || 1;
+  const firstId = searchParams.get("firstId");
+  const lastId = searchParams.get("lastId");
 
-  const [searchType, setSearchType] = useState<string>("name");
-  const [searchText, setSearchText] = useState<string>("");
-
-  const { message: msg, modal } = App.useApp();
   const PAGE_SIZE = 10;
 
-  const fetchTotalCount = async (targetText: string) => {
+  const fetchTotalCount = async (type: string, text: string) => {
     try {
       const coll = collection(db, "survey");
       let q = query(coll);
-      if (targetText.trim() !== "") {
-        q = query(coll, where(searchType, "==", targetText.trim()));
+      if (text.trim() !== "") {
+        q = query(coll, where(type, "==", text.trim()));
       }
       const snapshot = await getCountFromServer(q);
       setTotal(snapshot.data().count);
@@ -56,30 +62,35 @@ function ExcelPageContent() {
     }
   };
 
-  const fetchData = useCallback(async (direction: 'first' | 'next' | 'prev', targetText: string = searchText) => {
+  const fetchData = useCallback(async (direction: 'first' | 'next' | 'prev' | 'stay', type: string, text: string) => {
     setLoading(true);
     try {
       const collRef = collection(db, "survey");
       let queryConstraints: any[] = [];
 
-      // [핵심 변경] 검색어가 있으면 해당 필드로 정렬, 없으면 생성일로 정렬
-      if (targetText.trim() !== "") {
-        queryConstraints.push(where(searchType, "==", targetText.trim()));
-        queryConstraints.push(orderBy(searchType)); // 에러 방지를 위해 검색 필드로 정렬 고정
+      if (text.trim() !== "") {
+        queryConstraints.push(where(type, "==", text.trim()));
+        queryConstraints.push(orderBy(type));
       } else {
         queryConstraints.push(orderBy("created_at", "desc"));
       }
 
       let q;
-      if (direction === 'first') {
+      // [수정] stay: 새로고침 시 현재 ID 좌표부터 데이터를 가져옴
+      if (direction === 'stay' && firstId) {
+        const cursorDoc = await getDoc(doc(db, "survey", firstId));
+        q = query(collRef, ...queryConstraints, startAt(cursorDoc), limit(PAGE_SIZE));
+      } 
+      else if (direction === 'next' && lastId) {
+        const cursorDoc = await getDoc(doc(db, "survey", lastId));
+        q = query(collRef, ...queryConstraints, startAfter(cursorDoc), limit(PAGE_SIZE));
+      } 
+      else if (direction === 'prev' && firstId) {
+        const cursorDoc = await getDoc(doc(db, "survey", firstId));
+        q = query(collRef, ...queryConstraints, endBefore(cursorDoc), limitToLast(PAGE_SIZE));
+      } 
+      else {
         q = query(collRef, ...queryConstraints, limit(PAGE_SIZE));
-      } else if (direction === 'next' && lastVisible) {
-        q = query(collRef, ...queryConstraints, startAfter(lastVisible), limit(PAGE_SIZE));
-      } else if (direction === 'prev' && firstVisible) {
-        q = query(collRef, ...queryConstraints, endBefore(firstVisible), limitToLast(PAGE_SIZE));
-      } else {
-        setLoading(false);
-        return;
       }
 
       const querySnapshot = await getDocs(q);
@@ -90,40 +101,61 @@ function ExcelPageContent() {
 
       if (rows.length > 0) {
         setData(rows);
-        setFirstVisible(querySnapshot.docs[0]);
-        setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
+        const newFirstId = querySnapshot.docs[0].id;
+        const newLastId = querySnapshot.docs[querySnapshot.docs.length - 1].id;
         
-        if (direction === 'first') setCurrentPage(1);
-        else if (direction === 'next') setCurrentPage(prev => prev + 1);
-        else if (direction === 'prev') setCurrentPage(prev => prev - 1);
-      } else {
-        if (direction === 'first') {
-          setData([]);
-          setCurrentPage(1);
-        }
+        // 방향에 따른 페이지 계산
+        let nextPage = currentPage;
+        if (direction === 'first') nextPage = 1;
+        else if (direction === 'next') nextPage = currentPage + 1;
+        else if (direction === 'prev') nextPage = currentPage - 1;
+
+        setSearchParams({
+          page: String(nextPage),
+          firstId: newFirstId,
+          lastId: newLastId,
+          type: type,
+          text: text
+        });
       }
     } catch (error: any) {
       console.error("Firebase Error:", error);
-      msg.error("검색/정렬 인덱스가 필요합니다. 콘솔의 링크를 확인하세요.");
+      msg.error("데이터 로드 실패");
     } finally {
       setLoading(false);
     }
-  }, [firstVisible, lastVisible, searchType, searchText, msg]);
+  }, [firstId, lastId, currentPage, setSearchParams, msg]);
 
+  // [수정] 검색 파라미터가 바뀔 때만 실행되도록 하되, 새로고침 시 'stay' 모드 발동
   useEffect(() => {
-    fetchTotalCount("");
-    fetchData('first', "");
-  }, []);
+    const qText = searchParams.get("text") || "";
+    const qType = searchParams.get("type") || "name";
+    
+    setSearchText(qText);
+    setSearchType(qType);
+    fetchTotalCount(qType, qText);
+
+    // 만약 1페이지가 아니고 좌표(ID)가 있다면 그 지점부터 가져오기(stay)
+    if (currentPage > 1 && firstId) {
+      fetchData('stay', qType, qText);
+    } else {
+      fetchData('first', qType, qText);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get("text"), searchParams.get("type")]); 
 
   const handleSearch = () => {
-    fetchTotalCount(searchText);
-    fetchData('first', searchText);
+    setSearchParams({
+      page: "1",
+      type: searchType,
+      text: searchText
+    });
   };
 
   const handleRefresh = () => {
     setSearchText("");
-    fetchTotalCount("");
-    fetchData('first', "");
+    setSearchType("name");
+    setSearchParams({});
   };
 
   const executeDownload = async () => {
@@ -131,18 +163,19 @@ function ExcelPageContent() {
     try {
       const collRef = collection(db, "survey");
       let queryConstraints: any[] = [];
-      
-      if (searchText.trim() !== "") {
-        queryConstraints.push(where(searchType, "==", searchText.trim()));
-        queryConstraints.push(orderBy(searchType));
+      const qText = searchParams.get("text") || "";
+      const qType = searchParams.get("type") || "name";
+
+      if (qText.trim() !== "") {
+        queryConstraints.push(where(qType, "==", qText.trim()));
+        queryConstraints.push(orderBy(qType));
       } else {
         queryConstraints.push(orderBy("created_at", "desc"));
       }
-
       const q = query(collRef, ...queryConstraints);
       const querySnapshot = await getDocs(q);
       const allData = querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) })) as SurveyData[];
-
+      
       const headers = ["No", "신청시간", "성함", "연락처", "약국명"];
       const rows = allData.map((item, index) => [
         allData.length - index,
@@ -151,7 +184,6 @@ function ExcelPageContent() {
         item.phone,
         item.pharmacy
       ]);
-      
       const csvContent = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
@@ -211,7 +243,7 @@ function ExcelPageContent() {
           </Space>
 
           <Space.Compact style={{ width: '100%', maxWidth: '600px' }}>
-            <Select defaultValue="name" style={{ width: '120px' }} onChange={(val) => setSearchType(val)}>
+            <Select value={searchType} style={{ width: '120px' }} onChange={(val) => setSearchType(val)}>
               <Option value="name">성함</Option>
               <Option value="phone">연락처</Option>
               <Option value="pharmacy">약국명</Option>
@@ -228,9 +260,18 @@ function ExcelPageContent() {
           <Table dataSource={data} columns={columns} rowKey="id" loading={loading} pagination={false} />
 
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', marginTop: '20px' }}>
-            <Button icon={<ChevronLeft size={16} />} disabled={currentPage === 1 || loading} onClick={() => fetchData('prev')}>이전</Button>
+            <Button 
+              icon={<ChevronLeft size={16} />} 
+              disabled={currentPage === 1 || loading} 
+              onClick={() => fetchData('prev', searchType, searchText)}
+            >
+              이전
+            </Button>
             <Text strong>{currentPage} / {Math.ceil(total / PAGE_SIZE) || 1}</Text>
-            <Button disabled={(currentPage * PAGE_SIZE) >= total || loading} onClick={() => fetchData('next')}>
+            <Button 
+              disabled={(currentPage * PAGE_SIZE) >= total || loading} 
+              onClick={() => fetchData('next', searchType, searchText)}
+            >
               다음 <ChevronRight size={16} style={{ marginLeft: '4px' }} />
             </Button>
           </div>
