@@ -1,233 +1,161 @@
-import { useState, useEffect, useRef } from 'react'
-
-function useInView() {
-  const ref = useRef<HTMLDivElement>(null)
-  const [inView, setInView] = useState(false)
-  useEffect(() => {
-    const observer = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) setInView(true)
-    }, { threshold: 0.2 })
-    if (ref.current) observer.observe(ref.current)
-    return () => observer.disconnect()
-  }, [])
-  return { ref, inView }
-}
-
-interface Bar { label: string; value: number; highlight?: boolean }
-
-function BarChart({ title, subtitle, badge, bars, color }: { title: string; subtitle: string; badge: string; bars: Bar[]; color: string }) {
-  const { ref, inView } = useInView()
-  const max = Math.max(...bars.map(b => b.value))
-  return (
-    <div ref={ref} className="bg-white rounded-2xl p-6 shadow-sm border border-purple-50 h-full">
-      <p className="text-gray-400 text-xs mb-0.5">{title}</p>
-      <p className="font-extrabold text-gray-900 text-base mb-1">{subtitle}</p>
-      <span className="inline-block text-xs font-bold px-3 py-0.5 rounded-full text-white mb-5" style={{ backgroundColor: color }}>{badge}</span>
-      <div className="flex items-end gap-2" style={{ height: 100 }}>
-        {bars.map((bar, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full flex items-end" style={{ height: 88 }}>
-              <div
-                className="w-full rounded-t-lg transition-all duration-700 ease-out"
-                style={{
-                  height: inView ? `${(bar.value / max) * 88}px` : 0,
-                  backgroundColor: bar.highlight ? color : '#e9d5ff',
-                  transitionDelay: `${i * 120}ms`,
-                }}
-              />
-            </div>
-            <span className="text-[10px] text-gray-400 text-center leading-tight whitespace-pre-line">{bar.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+import { useState } from "react";
 
 export default function App() {
-  const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const [form, setForm] = useState({ name: "", phone: "", pharmacy: "" });
+  const [agree1, setAgree1] = useState(false);
+  const [agree2, setAgree2] = useState(false);
 
-  const faqs = [
-    { q: '증가의 기준은 어떻게 정하나요?', a: '매출 보장 상품은 마케팅 시작 후 6개월 매출 합산 대비, 전동일 6개월 이후 매출을 비교합니다.' },
-    { q: '보장은 어떻게 되나요?', a: '총 6개월 패키지 진행 기간 동안, 최소 600만 원 이상의 매출 상승을 100% 보장합니다.' },
-    { q: '보장 패키지의 최소 계약 단위가 6개월인가요?', a: '프리미엄 패키지 이상의 상품을 구매하셔야 무제한 매출 보장을 받으실 수 있습니다.' },
-  ]
+  const handleSubmit = () => {
+    if (!form.name.trim()) return alert("성함을 입력해주세요.");
+    
+    // 연락처 유효성 검사 (010으로 시작하는 10~11자리 숫자 또는 하이픈 포함 형식)
+    const phoneRegex = /^010-?\d{3,4}-?\d{4}$/;
+    if (!form.phone.trim()) {
+      return alert("연락처를 입력해주세요.");
+    } else if (!phoneRegex.test(form.phone.trim())) {
+      return alert("올바른 연락처 형식이 아닙니다. (예: 010-1234-5678)");
+    }
+
+    if (!form.pharmacy.trim()) return alert("약국명을 입력해주세요.");
+
+    if (!agree1 || !agree2) {
+      alert("개인정보 수집 및 제3자 제공에 모두 동의해주세요.");
+      return;
+    }
+
+    alert("상담 신청이 완료되었습니다!");
+  };
 
   return (
-    <div className="bg-white overflow-x-hidden" style={{ fontFamily: "'Pretendard', -apple-system, sans-serif" }}>
-
-      {/* ───── HERO ───── */}
-      <section
-        className="relative flex flex-col items-center justify-center text-center px-6 py-28 lg:py-40 overflow-hidden"
-        style={{ background: 'linear-gradient(160deg, #c4b5fd 0%, #a78bfa 25%, #7c3aed 65%, #4c1d95 100%)' }}
-      >
-        <div className="relative z-10 w-full max-w-xl lg:max-w-3xl mx-auto">
-          <p className="text-white/80 text-sm lg:text-base font-medium tracking-widest mb-5">약사님은 복약지도만 하세요</p>
-          <h1
-            className="text-white font-extrabold leading-tight mb-10"
-            style={{ fontSize: 'clamp(2.4rem, 6vw, 5rem)' }}
-          >
-            매출은<br />마케팅 전문가가<br />올립니다
-          </h1>
-          <div className="flex justify-center gap-4 mb-10">
-            {[0, 0.15, 0.3].map((delay, i) => (
-              <span key={i} className="text-4xl animate-bounce" style={{ animationDelay: `${delay}s`, willChange: 'transform' }}>💊</span>
-            ))}
-          </div>
-          <button
-            className="w-full lg:w-auto lg:px-16 bg-[#1a237e] hover:bg-[#283593] active:scale-95 transition-all duration-200 text-white font-bold py-5 px-6 rounded-2xl shadow-2xl shadow-purple-900/50 text-base lg:text-lg"
-            onClick={() => window.open('https://open.kakao.com', '_blank')}
-          >
-            지금 바로 입점 대기 현황 확인<br />
-            <span className="font-normal text-white/60 text-sm">내 지역 약국을 알아보세요</span>
-          </button>
-        </div>
+    <div className="min-h-screen bg-white font-sans">
+      {/* 배너 영역 */}
+      <section className="w-full flex justify-center bg-white">
+        <img
+          src={`${import.meta.env.BASE_URL}assets/landing.png`}
+          alt="배너"
+          className="w-full max-w-[480px] h-auto block"
+        />
       </section>
 
-      {/* ───── STATS ───── */}
-      <section className="bg-white py-20 px-6 lg:py-28">
-        <div className="max-w-xl lg:max-w-5xl mx-auto">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:gap-20">
-            <div className="text-center lg:text-left lg:flex-1 mb-10 lg:mb-0">
-              <p className="text-gray-400 text-sm lg:text-base mb-3">마케팅 4개월 만에</p>
-              <h2 className="font-extrabold text-gray-900 leading-tight mb-3" style={{ fontSize: 'clamp(1.8rem, 4vw, 3.2rem)' }}>
-                매약 매출<br /><span className="text-violet-600">1,720만 원</span> 상승!
-              </h2>
-              <p className="text-gray-400 text-sm lg:text-base">전국 수많은 약국들이 증명하고 있습니다</p>
-            </div>
-            <div className="lg:flex-1 bg-gradient-to-br from-violet-50 to-purple-100 rounded-3xl p-8 lg:p-10 shadow-lg border border-purple-100 text-center">
-              <div className="flex justify-center gap-4 mb-6">
-                <span className="text-7xl lg:text-8xl drop-shadow-lg">☕</span>
-                <span className="text-7xl lg:text-8xl drop-shadow-lg" style={{ transform: 'rotate(-10deg)' }}>☕</span>
-              </div>
-              <div className="bg-violet-600 text-white rounded-2xl py-4 px-6 shadow-lg shadow-violet-300/50">
-                <p className="text-xs lg:text-sm font-medium text-violet-200 mb-1">지금 상담 완료 시</p>
-                <p className="text-xl lg:text-2xl font-extrabold">스타벅스 아메리카노 100% 증정!</p>
-              </div>
-              <p className="text-gray-400 text-[10px] lg:text-xs mt-3">(단, 전문가와 통화 및 상품 상담 완료 시 제공)</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ───── CHARTS ───── */}
-      <section className="py-20 px-6 lg:py-28" style={{ background: 'linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%)' }}>
-        <div className="max-w-xl lg:max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <p className="text-gray-400 text-sm lg:text-base mb-2">데이터는 거짓말하지 않습니다</p>
-            <h2 className="font-extrabold text-gray-900 leading-tight" style={{ fontSize: 'clamp(1.5rem, 3.5vw, 2.5rem)' }}>
-              마케팅을 시작한 약국들의<br />
-              <span className="text-violet-600">놀라운 변화</span>
-            </h2>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-            <BarChart title="마케팅 3개월 차" subtitle="매약매출" badge="+41%" color="#7c3aed"
-              bars={[{ label: '1개월', value: 55 }, { label: '2개월', value: 72 }, { label: '3개월', value: 100, highlight: true }]} />
-            <BarChart title="전년 동월 대비" subtitle="매약매출" badge="+34%" color="#a855f7"
-              bars={[{ label: '3월', value: 60 }, { label: '4월', value: 75 }, { label: '5월', value: 100, highlight: true }]} />
-            <BarChart title="전년 대비 외부" subtitle="처방건수" badge="+263% 상승" color="#7c3aed"
-              bars={[{ label: '마케팅\n1개월 후', value: 28 }, { label: '현재', value: 100, highlight: true }]} />
-            <BarChart title="마케팅 2개월 차" subtitle="방문객수" badge="+23%" color="#a855f7"
-              bars={[{ label: '2월', value: 65 }, { label: '3월', value: 80 }, { label: '4월', value: 100, highlight: true }]} />
-          </div>
-        </div>
-      </section>
-
-      {/* ───── EVENT ───── */}
-      <section className="bg-white py-20 px-6 lg:py-28">
-        <div className="max-w-xl lg:max-w-5xl mx-auto">
-          <div className="text-center mb-6">
-            <span className="inline-block bg-violet-100 text-violet-700 text-xs lg:text-sm font-bold px-4 py-1.5 rounded-full tracking-wide">
-              놓치기 아쉬워! ✨
-            </span>
-          </div>
-          <div className="rounded-3xl overflow-hidden shadow-xl"
-            style={{ background: 'linear-gradient(135deg, #6d28d9 0%, #a855f7 60%, #c084fc 100%)' }}>
-            <div className="p-8 lg:p-16 text-center">
-              <p className="text-violet-200 text-xs lg:text-sm font-bold tracking-widest mb-2">4월 특별 이벤트 안내</p>
-              <h2 className="text-white font-extrabold leading-tight mb-8" style={{ fontSize: 'clamp(1.8rem, 4vw, 3.5rem)' }}>
-                상담 완료 시<br />커피 쿠폰 증정
-              </h2>
-              <div className="flex justify-center items-center gap-4 mb-8">
-                <span className="text-6xl lg:text-8xl">☕</span>
-                <span className="text-white/40 text-3xl font-thin">|</span>
-                <div className="text-white text-left">
-                  <p className="text-violet-200 text-xs lg:text-sm">상담 완료 시</p>
-                  <p className="font-extrabold text-xl lg:text-2xl leading-tight">스타벅스<br />아메리카노</p>
-                </div>
-              </div>
-              <div className="bg-white/15 backdrop-blur rounded-2xl p-5 lg:p-8 text-sm lg:text-base text-white/90 leading-relaxed text-left max-w-2xl mx-auto">
-                상담 신청 후 전문가와 통화 및 대행 서비스 상담을 완료하신 모든 분께{' '}
-                <strong className="text-white">'스타벅스 아메리카노 기프티콘'</strong>을 보내드립니다.
-              </div>
-              <p className="text-violet-300 text-[10px] lg:text-xs mt-4 leading-relaxed">
-                (단, 실질적인 마케팅 상담이 선행된 경우에 한해 증정됩니다.)
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ───── FAQ ───── */}
-      <section className="py-20 px-6 pb-40 lg:py-28 lg:pb-48" style={{ background: 'linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%)' }}>
-        <div className="max-w-xl lg:max-w-3xl mx-auto">
+      {/* 폼 영역: 배경색 흰색 유지 및 테두리로 영역 구분 */}
+      <section className="w-full flex justify-center py-10 px-4 bg-white">
+        <div className="w-full max-w-[480px] bg-white rounded-3xl border border-gray-200 shadow-xl px-7 py-10">
           <div className="text-center mb-10">
-            <p className="text-gray-400 text-xs lg:text-sm mb-2">약국 전용 무제한 패키지</p>
-            <h2 className="font-extrabold text-gray-900" style={{ fontSize: 'clamp(1.5rem, 3vw, 2.2rem)' }}>
-              자주 묻는 <span className="text-violet-600">Q&A</span>
+            <h2 className="text-[24px] font-black text-gray-900 mb-2 tracking-tight">
+              팜스타트 대행 서비스 신청
             </h2>
+            <p className="text-[14px] font-semibold text-gray-600">
+              ✨ 현재 패키지 신청 시 <span className="text-yellow-600">39만원 이상 절감 혜택</span> 제공 중!
+            </p>
           </div>
-          <div className="space-y-3 mb-10">
-            {faqs.map((faq, i) => (
-              <div key={i} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-purple-50">
-                <button
-                  className="w-full flex items-center gap-3 p-5 lg:p-6 text-left"
-                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                >
-                  <span className="w-8 h-8 flex-shrink-0 rounded-full bg-violet-600 text-white text-xs font-bold flex items-center justify-center">Q</span>
-                  <span className="flex-1 font-semibold text-gray-800 text-sm lg:text-base">{faq.q}</span>
-                  <span
-                    className="text-violet-400 text-xs transition-transform duration-200"
-                    style={{ display: 'inline-block', transform: openFaq === i ? 'rotate(180deg)' : 'rotate(0)' }}
-                  >▾</span>
-                </button>
-                {openFaq === i && (
-                  <div className="px-5 lg:px-6 pb-5 lg:pb-6 flex gap-3">
-                    <span className="w-8 h-8 flex-shrink-0 rounded-full bg-violet-100 text-violet-600 text-xs font-bold flex items-center justify-center">A</span>
-                    <p className="text-gray-500 text-sm lg:text-base leading-relaxed">{faq.a}</p>
-                  </div>
-                )}
+
+          <div className="space-y-5 mb-10">
+            {[
+              { label: "성함", key: "name", placeholder: "실명을 입력해주세요" },
+              { label: "연락처", key: "phone", placeholder: "010-0000-0000" },
+              { label: "약국명", key: "pharmacy", placeholder: "약국 이름을 입력해주세요" },
+            ].map(({ label, key, placeholder }) => (
+              <div key={key} className="flex flex-col gap-2">
+                <label className="text-[14px] font-bold text-gray-800 ml-1">
+                  {label} <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder={placeholder}
+                  value={form[key as keyof typeof form]}
+                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all bg-white"
+                />
               </div>
             ))}
           </div>
+
+          <ConsentBlock
+            title="개인정보 수집 및 이용 동의 (필수)"
+            rows={[
+              ["수집 업체", "데일리팜"],
+              ["수집 목적", "SNS 온라인 대행 6개월 패키지 상담 정보 제공"],
+              ["수집 항목", "성명/약국명/연락처"],
+              ["보관 기간", "신청 후 1년"],
+            ]}
+            checked={agree1}
+            onChange={setAgree1}
+          />
+
+          <ConsentBlock
+            title="개인정보 제3자 제공 동의 (필수)"
+            rows={[
+              ["제공받는 자", "킹메이커"],
+              ["이용 목적", "SNS 온라인 대행 운영 및 서비스 광고 및 마케팅"],
+              ["수집 항목", "성명/약국명/연락처"],
+              ["보유 및 이용 기간", "목적 달성 시까지"],
+            ]}
+            checked={agree2}
+            onChange={setAgree2}
+          />
+
+          <p className="text-center text-[13px] text-red-500 font-bold mt-4 mb-8">
+            ※ 미동의 시 상담 및 혜택 수령이 불가능합니다.
+          </p>
+
           <button
-            className="w-full py-5 lg:py-6 rounded-2xl font-extrabold text-white lg:text-xl shadow-xl shadow-violet-300 active:scale-95 transition-transform text-lg"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)' }}
-            onClick={() => window.open('https://open.kakao.com', '_blank')}
+            onClick={handleSubmit}
+            className="w-full py-4.5 bg-[#2D3136] rounded-xl text-[17px] font-bold text-white hover:bg-black active:scale-[0.97] transition-all shadow-lg"
           >
-            지금 무료 상담 신청하기 →
+            무료 상담하고 혜택 받기
           </button>
-          <p className="text-gray-400 text-xs lg:text-sm text-center mt-3">전문가가 직접 연락드립니다</p>
+
+          <p className="text-center text-[12px] text-gray-400 mt-6">
+            입력하신 정보는 상담 목적으로만 안전하게 보호됩니다.
+          </p>
         </div>
       </section>
-
-      {/* ───── FLOATING CTA ───── */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none px-6 pb-6"
-        style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
-      >
-        <div className="max-w-xl lg:max-w-2xl mx-auto pointer-events-auto">
-          <button
-            className="w-full py-4 lg:py-5 rounded-2xl font-extrabold text-white text-base lg:text-lg shadow-2xl shadow-violet-500/50 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #c084fc)' }}
-            onClick={() => window.open('https://open.kakao.com', '_blank')}
-          >
-            <span>💬</span>
-            <span>지금 바로 무료 상담받기</span>
-          </button>
-        </div>
-      </div>
-
     </div>
-  )
+  );
+}
+
+function ConsentBlock({
+  title,
+  rows,
+  checked,
+  onChange,
+}: {
+  title: string;
+  rows: [string, string][];
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="mb-8">
+      <h3 className="text-[15px] font-bold text-gray-900 mb-3 ml-1">{title}</h3>
+      <div className="border border-gray-200 rounded-xl px-4 py-4 bg-gray-50 mb-4">
+        {rows.map(([label, value]) => (
+          <p key={label} className="text-[12px] text-gray-600 leading-relaxed mb-0.5 last:mb-0">
+            <span className="font-bold text-gray-700">{label}</span> : {value}
+          </p>
+        ))}
+      </div>
+      
+      <label className="flex items-center gap-3 cursor-pointer select-none w-fit group">
+        <div
+          onClick={(e) => {
+            e.preventDefault(); 
+            onChange(!checked);
+          }}
+          className={`w-6 h-6 rounded-md flex items-center justify-center border-2 transition-all ${
+            checked ? "bg-teal-600 border-teal-600" : "bg-white border-gray-300 group-hover:border-teal-500"
+          }`}
+        >
+          {checked && (
+            <svg className="w-4 h-4 text-white" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </div>
+        <span className="text-[15px] font-bold text-gray-800" onClick={() => onChange(!checked)}>
+          동의합니다
+        </span>
+      </label>
+    </div>
+  );
 }
