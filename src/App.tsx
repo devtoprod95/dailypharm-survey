@@ -4,7 +4,9 @@ function useInView() {
   const ref = useRef<HTMLDivElement>(null)
   const [inView, setInView] = useState(false)
   useEffect(() => {
-    const observer = new IntersectionObserver(([e]) => { if (e.isIntersecting) setInView(true) }, { threshold: 0.2 })
+    const observer = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) setInView(true)
+    }, { threshold: 0.2 })
     if (ref.current) observer.observe(ref.current)
     return () => observer.disconnect()
   }, [])
@@ -12,6 +14,7 @@ function useInView() {
 }
 
 interface Bar { label: string; value: number; highlight?: boolean }
+
 function BarChart({ title, subtitle, badge, bars, color }: { title: string; subtitle: string; badge: string; bars: Bar[]; color: string }) {
   const { ref, inView } = useInView()
   const max = Math.max(...bars.map(b => b.value))
@@ -51,12 +54,12 @@ export default function App() {
   ]
 
   return (
-    <div className="bg-white overflow-x-hidden" style={{ minHeight: '100svh', fontFamily: "'Pretendard', -apple-system, sans-serif" }}>
+    <div className="bg-white overflow-x-hidden" style={{ fontFamily: "'Pretendard', -apple-system, sans-serif" }}>
 
       {/* ───── HERO ───── */}
       <section
-        className="relative flex flex-col items-center justify-center text-center px-6 py-24 overflow-hidden"
-        style={{ minHeight: '100svh', background: 'linear-gradient(160deg, #c4b5fd 0%, #a78bfa 25%, #7c3aed 65%, #4c1d95 100%)' }}
+        className="relative flex flex-col items-center justify-center text-center px-6 py-28 lg:py-40 overflow-hidden"
+        style={{ background: 'linear-gradient(160deg, #c4b5fd 0%, #a78bfa 25%, #7c3aed 65%, #4c1d95 100%)' }}
       >
         <div className="relative z-10 w-full max-w-xl lg:max-w-3xl mx-auto">
           <p className="text-white/80 text-sm lg:text-base font-medium tracking-widest mb-5">약사님은 복약지도만 하세요</p>
@@ -68,15 +71,15 @@ export default function App() {
           </h1>
           <div className="flex justify-center gap-4 mb-10">
             {[0, 0.15, 0.3].map((delay, i) => (
-              <span key={i} className="text-4xl animate-bounce" style={{ animationDelay: `${delay}s` }}>💊</span>
+              <span key={i} className="text-4xl animate-bounce" style={{ animationDelay: `${delay}s`, willChange: 'transform' }}>💊</span>
             ))}
           </div>
           <button
             className="w-full lg:w-auto lg:px-16 bg-[#1a237e] hover:bg-[#283593] active:scale-95 transition-all duration-200 text-white font-bold py-5 px-6 rounded-2xl shadow-2xl shadow-purple-900/50 text-base lg:text-lg"
             onClick={() => window.open('https://open.kakao.com', '_blank')}
           >
-            지금 바로 입점 대 취약점 확인 현황<br />
-            <span className="font-normal text-white/60 text-sm">기준 약국을 알아보세요</span>
+            지금 바로 입점 대기 현황 확인<br />
+            <span className="font-normal text-white/60 text-sm">내 지역 약국을 알아보세요</span>
           </button>
         </div>
       </section>
@@ -84,7 +87,6 @@ export default function App() {
       {/* ───── STATS ───── */}
       <section className="bg-white py-20 px-6 lg:py-28">
         <div className="max-w-xl lg:max-w-5xl mx-auto">
-          {/* Mobile: stacked / PC: side by side */}
           <div className="flex flex-col lg:flex-row lg:items-center lg:gap-20">
             <div className="text-center lg:text-left lg:flex-1 mb-10 lg:mb-0">
               <p className="text-gray-400 text-sm lg:text-base mb-3">마케팅 4개월 만에</p>
@@ -93,7 +95,6 @@ export default function App() {
               </h2>
               <p className="text-gray-400 text-sm lg:text-base">전국 수많은 약국들이 증명하고 있습니다</p>
             </div>
-
             <div className="lg:flex-1 bg-gradient-to-br from-violet-50 to-purple-100 rounded-3xl p-8 lg:p-10 shadow-lg border border-purple-100 text-center">
               <div className="flex justify-center gap-4 mb-6">
                 <span className="text-7xl lg:text-8xl drop-shadow-lg">☕</span>
@@ -140,10 +141,8 @@ export default function App() {
               놓치기 아쉬워! ✨
             </span>
           </div>
-          <div
-            className="rounded-3xl overflow-hidden shadow-xl"
-            style={{ background: 'linear-gradient(135deg, #6d28d9 0%, #a855f7 60%, #c084fc 100%)' }}
-          >
+          <div className="rounded-3xl overflow-hidden shadow-xl"
+            style={{ background: 'linear-gradient(135deg, #6d28d9 0%, #a855f7 60%, #c084fc 100%)' }}>
             <div className="p-8 lg:p-16 text-center">
               <p className="text-violet-200 text-xs lg:text-sm font-bold tracking-widest mb-2">4월 특별 이벤트 안내</p>
               <h2 className="text-white font-extrabold leading-tight mb-8" style={{ fontSize: 'clamp(1.8rem, 4vw, 3.5rem)' }}>
@@ -170,7 +169,7 @@ export default function App() {
       </section>
 
       {/* ───── FAQ ───── */}
-      <section className="py-20 px-6 pb-36 lg:py-28 lg:pb-40" style={{ background: 'linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%)' }}>
+      <section className="py-20 px-6 pb-40 lg:py-28 lg:pb-48" style={{ background: 'linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%)' }}>
         <div className="max-w-xl lg:max-w-3xl mx-auto">
           <div className="text-center mb-10">
             <p className="text-gray-400 text-xs lg:text-sm mb-2">약국 전용 무제한 패키지</p>
@@ -213,7 +212,10 @@ export default function App() {
       </section>
 
       {/* ───── FLOATING CTA ───── */}
-      <div className="fixed bottom-6 left-0 right-0 px-6 z-50 pointer-events-none">
+      <div
+        className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none px-6 pb-6"
+        style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+      >
         <div className="max-w-xl lg:max-w-2xl mx-auto pointer-events-auto">
           <button
             className="w-full py-4 lg:py-5 rounded-2xl font-extrabold text-white text-base lg:text-lg shadow-2xl shadow-violet-500/50 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2"
