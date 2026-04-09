@@ -55,8 +55,8 @@ export default function App() {
 
       {/* ───── HERO ───── */}
       <section
-        className="relative min-h-screen flex flex-col items-center justify-center text-center px-6 py-24 overflow-hidden"
-        style={{ background: 'linear-gradient(160deg, #c4b5fd 0%, #a78bfa 25%, #7c3aed 65%, #4c1d95 100%)' }}
+        className="relative flex flex-col items-center justify-center text-center px-6 py-24 overflow-hidden"
+        style={{ minHeight: '100svh', background: 'linear-gradient(160deg, #c4b5fd 0%, #a78bfa 25%, #7c3aed 65%, #4c1d95 100%)' }}
       >
         <div className="relative z-10 w-full max-w-xl lg:max-w-3xl mx-auto">
           <p className="text-white/80 text-sm lg:text-base font-medium tracking-widest mb-5">약사님은 복약지도만 하세요</p>
