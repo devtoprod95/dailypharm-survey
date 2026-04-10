@@ -1,16 +1,45 @@
-name: Remote Deploy from React
+name: Auto Deploy to GitHub Pages
 
 on:
-  repository_dispatch:
-    types: [manual-deploy] # 리액트에서 보낼 신호 이름
+  push:
+    branches: [ main ]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # --- [추가된 로직] 이미지 로테이션 및 백업 ---
+      - name: Rotate and Prepare Images
+        run: |
+          # 1. 대기 중인 파일이 있는지 확인 (landing_pending.png)
+          if [ -f "public/assets/landing_pending.png" ]; then
+            echo "New image found. Preparing deployment..."
+            
+            # 2. 기존 landing.png가 있다면 landing_prev.png로 백업 (덮어쓰기)
+            if [ -f "public/assets/landing.png" ]; then
+              mv public/assets/landing.png public/assets/landing_prev.png
+            fi
+            
+            # 3. 새 이미지를 실 서비스용 landing.png로 변경
+            mv public/assets/landing_pending.png public/assets/landing.png
+            
+            # 4. 변경 사항을 다시 저장소에 커밋 (빌드 전 파일 정리)
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git add public/assets/
+            git commit -m "chore: rotate landing images [skip ci]" || echo "No changes to commit"
+            git push origin main
+          else
+            echo "No pending image found. Skipping rotation."
+          fi
+
+      # --- 기존 배포 로직 ---
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -22,11 +51,10 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          VITE_GITHUB_TOKEN: ${{ secrets.VITE_GITHUB_TOKEN }}
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }} 
-          publish_dir: ./dist # Vite 빌드 폴더명
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          force_orphan: true

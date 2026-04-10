@@ -1,117 +1,170 @@
-import { useState } from 'react';
-import { CloudArrowUpIcon, CheckCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import React, { useState } from 'react';
+import { PhotoIcon, ArrowUpTrayIcon, CheckCircleIcon, ExclamationCircleIcon, KeyIcon } from '@heroicons/react/24/outline';
 
 export default function Deploy() {
-  // 상태에 'confirm'만 추가했습니다.
-  const [status, setStatus] = useState<'idle' | 'confirm' | 'loading' | 'success'>('idle');
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [token, setToken] = useState('');
 
-  const handleDeploy = async () => {
+  const REPO_OWNER = "devtoprod95";
+  const REPO_NAME = "dailypharm-survey";
+  const FILE_PATH = "public/assets/landing_pending.png";
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) setFile(e.target.files[0]);
+  };
+
+  const handlePush = async () => {
+    if (!token) return alert("GitHub 토큰을 입력해주세요.");
+    if (!file) return alert("교체할 이미지를 선택해주세요.");
+    
     setStatus('loading');
 
-    // 보안 주의: 실제 운영 서비스라면 백엔드(Firebase 등)에서 처리하는 게 안전합니다.
-    const GITHUB_TOKEN = import.meta.env.VITE_GITHUB_TOKEN;
-    const REPO_OWNER = 'devtoprod95';
-    const REPO_NAME = 'dailypharm-survey';
-
     try {
-      const response = await fetch(
-        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/dispatches`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${GITHUB_TOKEN}`,
-            Accept: 'application/vnd.github.v3+json',
-          },
-          body: JSON.stringify({
-            event_type: 'manual-deploy', // YAML 파일의 types와 일치
-          }),
+      // 1. 기존 파일의 SHA 값을 가져오기
+      const getFileRes = await fetch(
+        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`,
+        { 
+          headers: { 
+            Authorization: `token ${token}`,
+            'Accept': 'application/vnd.github.v3+json'
+          } 
         }
       );
+      
+      if (!getFileRes.ok) throw new Error("파일 정보를 가져오지 못했습니다. 토큰을 확인하세요.");
+      
+      const fileData = await getFileRes.json();
+      const sha = fileData.sha;
 
-      if (response.ok) {
-        setStatus('success');
-        setTimeout(() => setStatus('idle'), 3000);
-      } else {
-        throw new Error('배포 요청 실패');
-      }
-    } catch (error) {
-      console.error(error);
-      alert("배포 요청 중 오류가 발생했습니다. 토큰이나 권한을 확인해 보세요.");
-      setStatus('idle');
+      // 2. 파일을 Base64로 인코딩
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64Content = (reader.result as string).split(',')[1];
+
+        // 3. GitHub API로 파일 직접 푸시
+        const res = await fetch(
+          `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`,
+          {
+            method: 'PUT',
+            headers: {
+              Authorization: `token ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              message: "upload: 새로운 랜딩 이미지 대기열 추가",
+              content: base64Content,
+              sha: sha, 
+              branch: "main"
+            }),
+          }
+        );
+
+        if (res.ok) {
+          setStatus('success');
+          setFile(null); // 파일 선택 초기화
+          setTimeout(() => setStatus('idle'), 5000);
+        } else {
+          setStatus('error');
+        }
+      };
+    } catch (err) {
+      console.error(err);
+      setStatus('error');
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 p-6">
-      <div className="w-full max-w-sm bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-gray-100 p-8">
+    /* flex와 min-h-screen을 추가하여 화면 정중앙에 배치 */
+    <div className="min-h-screen flex items-center justify-center p-8">
+      <div className="max-w-2xl w-full mx-auto">
+        <header className="mb-8 text-center"> {/* 헤더도 중앙 정렬이 어울리도록 text-center 추가 */}
+          <h1 className="text-2xl font-bold text-gray-800">배포 관리 시스템</h1>
+          <p className="text-gray-500 text-sm mt-1">랜딩 페이지 이미지를 교체하고 배포합니다.</p>
+        </header>
         
-        <div className="flex justify-center mb-6">
-          <div className="p-4 bg-blue-50 rounded-full">
-            <CloudArrowUpIcon className="w-8 h-8 text-blue-600" />
+        <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 space-y-6">
+          
+          {/* 토큰 입력 섹션 */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
+              <KeyIcon className="w-4 h-4" /> GitHub Personal Access Token
+            </label>
+            <input 
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="ghp_로 시작하는 토큰을 붙여넣으세요"
+              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+            />
+            <p className="mt-1 text-[11px] text-gray-400 font-medium">* 토큰은 어디에도 저장되지 않으며 브라우저를 새로고침하면 삭제됩니다.</p>
           </div>
-        </div>
 
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">시스템 배포</h2>
-          <p className="text-sm text-gray-500 mt-2 leading-relaxed">
-            클릭 한 번으로 최신 데이터를 <br />
-            운영 서버에 즉시 반영합니다.
-          </p>
-        </div>
+          {/* 이미지 업로드 섹션 */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2 text-left">교체할 이미지</label>
+            <div className="relative group border-2 border-dashed border-gray-300 rounded-xl p-8 hover:border-blue-500 hover:bg-blue-50 transition-all text-center">
+              <input 
+                type="file" 
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                onChange={handleFileChange} 
+                accept="image/png, image/jpeg, image/jpg" 
+              />
+              <PhotoIcon className="mx-auto h-10 w-10 text-gray-400 group-hover:text-blue-500" />
+              <p className="mt-2 text-sm text-gray-600">
+                {file ? (
+                  <span className="text-blue-600 font-bold">{file.name}</span>
+                ) : (
+                  "이미지 파일을 드래그하거나 클릭하세요 (PNG, JPG, JPEG만 선택 가능)"
+                )}
+              </p>
+            </div>
+          </div>
 
-        {/* 버튼 영역: 높이를 고정(h-[60px])하여 상태 변경 시에도 UI가 안 흔들리게 함 */}
-        <div className="relative overflow-hidden h-[60px] w-full rounded-2xl">
-          {status === 'idle' && (
-            <button
-              onClick={() => setStatus('confirm')}
-              className="w-full h-full bg-slate-900 hover:bg-black text-white font-bold text-lg transition-all"
-            >
-              배포하기
-            </button>
-          )}
+          {/* 실행 버튼 */}
+          <button
+            onClick={handlePush}
+            disabled={status === 'loading'}
+            className={`w-full py-4 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-3 ${
+              status === 'loading' ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+            }`}
+          >
+            {status === 'loading' ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                서버에 반영 중...
+              </>
+            ) : status === 'success' ? (
+              <><CheckCircleIcon className="w-6 h-6" /> 배포 요청 성공!</>
+            ) : (
+              <><ArrowUpTrayIcon className="w-5 h-5" /> 이미지 교체 및 배포 시작</>
+            )}
+          </button>
 
-          {status === 'confirm' && (
-            <div className="flex h-full gap-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
-              <button
-                onClick={() => setStatus('idle')}
-                className="flex-1 bg-gray-100 text-gray-600 font-bold rounded-2xl hover:bg-gray-200"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleDeploy}
-                className="flex-[2] bg-blue-500 text-white font-bold rounded-2xl hover:bg-blue-600"
-              >
-                진짜 배포할까요?
-              </button>
+          {status === 'success' && (
+            <div className="p-4 bg-green-50 rounded-lg border border-green-100">
+              <p className="text-center text-sm text-green-700 font-semibold leading-relaxed">
+                ✅ GitHub 푸시 완료! <br />
+                약 2~3분 뒤 사이트에서 확인 가능합니다.
+              </p>
             </div>
           )}
 
-          {(status === 'loading' || status === 'success') && (
-            <div className={`w-full h-full flex flex-col items-center justify-center gap-1 font-bold text-white transition-colors duration-300 ${status === 'loading' ? 'bg-gray-400' : 'bg-green-500'}`}>
-              {status === 'loading' ? (
-                <div className="flex items-center gap-3">
-                  <ArrowPathIcon className="w-5 h-5 animate-spin" />
-                  <span>배포 요청 중...</span>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
-                  <div className="flex items-center gap-2">
-                    <CheckCircleIcon className="w-6 h-6" />
-                    <span className="text-lg">배포 요청 완료!</span>
-                  </div>
-                  <span className="text-[10px] font-medium opacity-90 leading-tight">
-                    실제 적용까지 1~3분이 소요됩니다.
-                  </span>
-                </div>
-              )}
+          {status === 'error' && (
+            <div className="p-4 bg-red-50 rounded-lg border border-red-100 flex items-center justify-center gap-3">
+              <ExclamationCircleIcon className="w-6 h-6 text-red-700 shrink-0" />
+              <div className="flex flex-col text-left"> {/* 텍스트 정렬은 아이콘 옆에서 왼쪽 정렬이 더 깔끔합니다 */}
+                <p className="text-sm text-red-700 font-semibold leading-relaxed">
+                  토큰이 틀렸거나 권한이 없습니다.
+                </p>
+                <p className="text-sm text-red-700 font-semibold leading-relaxed">
+                  관리자에 문의 바랍니다.
+                </p>
+              </div>
             </div>
           )}
         </div>
-
-        <p className="mt-6 text-center text-[11px] text-gray-400 uppercase tracking-widest font-medium">
-          Github Actions Workflow Trigger
-        </p>
       </div>
     </div>
   );
