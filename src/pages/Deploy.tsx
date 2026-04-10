@@ -32,10 +32,14 @@ export default function Deploy() {
         }
       );
       
-      if (!getFileRes.ok) throw new Error("파일 정보를 가져오지 못했습니다. 토큰을 확인하세요.");
-      
-      const fileData = await getFileRes.json();
-      const sha = fileData.sha;
+      let sha = null; // 기본값을 null로 설정
+      if (getFileRes.ok) {
+        // 파일이 이미 존재하면 SHA 값을 가져옴 (업데이트용)
+        const fileData = await getFileRes.json();
+        sha = fileData.sha;
+      } else if (getFileRes.status !== 404) {
+        sha = null;
+      }
 
       // 2. 파일을 Base64로 인코딩
       const reader = new FileReader();
