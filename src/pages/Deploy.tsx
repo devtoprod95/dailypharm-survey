@@ -88,17 +88,22 @@ export default function Deploy() {
           )}
 
           {(status === 'loading' || status === 'success') && (
-            <div className={`w-full h-full flex items-center justify-center gap-3 font-bold text-white transition-colors duration-300 ${status === 'loading' ? 'bg-gray-400' : 'bg-green-500'}`}>
+            <div className={`w-full h-full flex flex-col items-center justify-center gap-1 font-bold text-white transition-colors duration-300 ${status === 'loading' ? 'bg-gray-400' : 'bg-green-500'}`}>
               {status === 'loading' ? (
-                <>
+                <div className="flex items-center gap-3">
                   <ArrowPathIcon className="w-5 h-5 animate-spin" />
-                  <span>처리 중...</span>
-                </>
+                  <span>배포 요청 중...</span>
+                </div>
               ) : (
-                <>
-                  <CheckCircleIcon className="w-6 h-6" />
-                  <span>배포완료! 적용 시간이 발생될 수 있어 참고바랍니다.</span>
-                </>
+                <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
+                  <div className="flex items-center gap-2">
+                    <CheckCircleIcon className="w-6 h-6" />
+                    <span className="text-lg">배포 요청 완료!</span>
+                  </div>
+                  <span className="text-[10px] font-medium opacity-90 leading-tight">
+                    실제 적용까지 1~3분이 소요됩니다.
+                  </span>
+                </div>
               )}
             </div>
           )}

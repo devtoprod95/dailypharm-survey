@@ -2,11 +2,15 @@ name: Remote Deploy from React
 
 on:
   repository_dispatch:
-    types: [manual-deploy] # 리액트에서 보낼 신호 이름
+    types: [manual-deploy]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    # 1. 쓰기 권한 허용 (에러 128 해결)
+    permissions:
+      contents: write
+      
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -14,15 +18,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24 # 2. Node.js 버전을 24로 상향
           cache: 'npm'
 
       - name: Install dependencies
         run: npm install
 
       - name: Build
-        # 빌드 단계에서 환경 변수를 주입합니다.
-        # 이 과정이 있어야 배포된 사이트에서 import.meta.env.VITE_GITHUB_TOKEN을 읽을 수 있습니다.
         run: npm run build
         env:
           VITE_GITHUB_TOKEN: ${{ secrets.VITE_GITHUB_TOKEN }}
@@ -30,6 +32,5 @@ jobs:
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
-          # 이건 gh-pages 패키지가 배포를 위해 쓰는 토큰이므로 그대로 둡니다.
-          github_token: ${{ secrets.GITHUB_TOKEN }} 
-          publish_dir: ./dist # Vite 빌드 폴더명
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
