@@ -4,6 +4,7 @@ import App from './App.tsx'
 import FirebaseTest from './pages/FirebaseTest.tsx'
 import './index.css'
 import AdminExcelPage from './pages/AdminExcelPage.tsx'
+import Deploy from './pages/Deploy.tsx'
 
 const router = createHashRouter([
   {
@@ -17,6 +18,10 @@ const router = createHashRouter([
   {
     path: "/excel-down",
     element: <AdminExcelPage />,
+  },
+  {
+    path: "/deploy",
+    element: <Deploy />,
   },
 ]);
 
