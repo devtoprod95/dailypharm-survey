@@ -2,15 +2,11 @@ name: Remote Deploy from React
 
 on:
   repository_dispatch:
-    types: [manual-deploy]
+    types: [manual-deploy] # 리액트에서 보낼 신호 이름
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    # 1. 쓰기 권한 허용 (에러 128 해결)
-    permissions:
-      contents: write
-      
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,7 +14,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24 # 2. Node.js 버전을 24로 상향
+          node-version: 20
           cache: 'npm'
 
       - name: Install dependencies
@@ -32,5 +28,5 @@ jobs:
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
+          github_token: ${{ secrets.GITHUB_TOKEN }} 
+          publish_dir: ./dist # Vite 빌드 폴더명
