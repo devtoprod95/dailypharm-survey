@@ -9,7 +9,7 @@ export default function Deploy() {
     setStatus('loading');
 
     // 보안 주의: 실제 운영 서비스라면 백엔드(Firebase 등)에서 처리하는 게 안전합니다.
-    const GITHUB_TOKEN = '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 '; 
+    const GITHUB_TOKEN = import.meta.env.VITE_GITHUB_TOKEN;
     const REPO_OWNER = 'devtoprod95';
     const REPO_NAME = 'dailypharm-survey';
 
