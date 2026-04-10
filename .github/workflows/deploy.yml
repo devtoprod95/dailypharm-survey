@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 히스토리 전체를 가져와야 git push가 안전합니다.
 
       # --- [추가된 로직] 이미지 로테이션 및 백업 ---
       - name: Rotate and Prepare Images
@@ -50,7 +52,7 @@ jobs:
         run: npm install
 
       - name: Build
-        run: npm run 
+        run: npm run build
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}

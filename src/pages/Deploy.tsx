@@ -21,25 +21,7 @@ export default function Deploy() {
     setStatus('loading');
 
     try {
-      // 1. 기존 파일의 SHA 값을 가져오기
-      const getFileRes = await fetch(
-        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`,
-        { 
-          headers: { 
-            Authorization: `token ${token}`,
-            'Accept': 'application/vnd.github.v3+json'
-          } 
-        }
-      );
-      
-      let sha = null; // 기본값을 null로 설정
-      if (getFileRes.ok) {
-        // 파일이 이미 존재하면 SHA 값을 가져옴 (업데이트용)
-        const fileData = await getFileRes.json();
-        sha = fileData.sha;
-      } else if (getFileRes.status !== 404) {
-        sha = null;
-      }
+      let sha = null;
 
       // 2. 파일을 Base64로 인코딩
       const reader = new FileReader();
