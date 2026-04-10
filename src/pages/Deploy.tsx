@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { CloudArrowUpIcon, CheckCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
 export default function Deploy() {
@@ -97,7 +97,7 @@ export default function Deploy() {
               ) : (
                 <>
                   <CheckCircleIcon className="w-6 h-6" />
-                  <span>완료됨</span>
+                  <span>배포완료! 적용 시간이 발생될 수 있어 참고바랍니다.</span>
                 </>
               )}
             </div>
