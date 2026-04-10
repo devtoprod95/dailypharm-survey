@@ -88,7 +88,7 @@ export default function App() {
     <div className="min-h-screen bg-white font-sans overflow-x-hidden w-full flex flex-col items-center touch-pan-y">
       <section className={`w-full max-w-[480px] bg-white transition-all duration-300 flex items-center justify-center ${isImageLoaded ? "h-auto" : "min-h-[300px]"}`}>
         <img
-          src={`${import.meta.env.BASE_URL}assets/landing.png`}
+          src={`${import.meta.env.BASE_URL}assets/landing.png?v=${new Date().getTime()}`}
           alt="배너"
           className="w-full h-auto block object-contain"
           onLoad={() => setIsImageLoaded(true)}
