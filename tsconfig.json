@@ -3,9 +3,5 @@
   "references": [
     { "path": "./tsconfig.app.json" },
     { "path": "./tsconfig.node.json" }
-  ],
-  "compilerOptions": {
-    "noUnusedLocals": false,   // 추천: false로 두면 빌드가 안 깨짐
-    "noUnusedParameters": false 
-  }
+  ]
 }
