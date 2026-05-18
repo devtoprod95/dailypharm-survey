@@ -142,13 +142,18 @@ export default function LandingDetailPage() {
     try {
       const cleanPhone = form.phone.trim().replace(/-/g, "");
 
-      await addDoc(collection(db, name.trim()), {
-        target: landingData.name || name,
-        name: landingData.fields?.name?.show ? form.name.trim() : "",
-        phone: landingData.fields?.phone?.show ? cleanPhone : "",
-        pharmacy: landingData.fields?.pharmacy?.show ? form.pharmacy.trim() : "",
-        created_at: serverTimestamp(),
-      });
+      if (name.trim()) {
+        await addDoc(collection(db, name.trim()), {
+          target: landingData.name || name,
+          name: landingData.fields?.name?.show ? form.name.trim() : "",
+          phone: landingData.fields?.phone?.show ? cleanPhone : "",
+          pharmacy: landingData.fields?.pharmacy?.show ? form.pharmacy.trim() : "",
+          created_at: serverTimestamp(),
+        });
+      } else {
+        alert("신청이 실패했습니다. 관리자에 문의해주세요.");
+        return false;
+      }
 
       alert("신청이 완료되었습니다.");
       setForm({ name: "", phone: "", pharmacy: "" });
