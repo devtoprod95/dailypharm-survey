@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs, deleteDoc, doc, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc, query, orderBy, writeBatch } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { Table, Button, Space, Typography, Card } from "antd"; 
 import { Plus, Edit, Trash2, ExternalLink } from "lucide-react"; 
@@ -25,13 +25,28 @@ export default function LandingListPage({ onEdit, onAdd }: { onEdit: (id: string
 
   useEffect(() => { fetchList(); }, []);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (!window.confirm("정말 삭제하시겠습니까?")) {
       return;
     }
 
     try {
+      const replyCollectionRef = collection(db, name);
+      const replySnapshot = await getDocs(replyCollectionRef);
+      
+      // 2. 일괄 삭제를 위한 묶음(Batch) 생성
+      const batch = writeBatch(db);
+      
+      // 컬렉션 하위에 문서들이 존재할 경우에만 일괄 삭제 등록
+      replySnapshot.forEach((document) => {
+        batch.delete(document.ref);
+      });
+
+      // 3. 참여자 응답 데이터 일괄 삭제 실행
+      await batch.commit();
+
       await deleteDoc(doc(db, "survey_list", id));
+
       alert("삭제되었습니다."); 
       fetchList();
     } catch (e) {
@@ -65,7 +80,7 @@ export default function LandingListPage({ onEdit, onAdd }: { onEdit: (id: string
           
           <Button icon={<Edit size={14} />} onClick={() => onEdit(record.id)}>수정</Button>
           
-          <Button danger icon={<Trash2 size={14} />} onClick={() => handleDelete(record.id)} />
+          <Button danger icon={<Trash2 size={14} />} onClick={() => handleDelete(record.id, record.name)} />
         </Space>
       ),
     },
