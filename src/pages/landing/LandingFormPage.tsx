@@ -160,39 +160,39 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
   
     setLoading(true);
     try {
-      // if (isGitHubApiRequired && rawFile) {
-      //   const getBase64 = (file: File): Promise<string> => {
-      //     return new Promise((resolve, reject) => {
-      //       const reader = new FileReader();
-      //       reader.readAsDataURL(file);
-      //       reader.onload = () => resolve((reader.result as string).split(',')[1]);
-      //       reader.onerror = (error) => reject(error);
-      //     });
-      //   };
+      if (isGitHubApiRequired && rawFile) {
+        const getBase64 = (file: File): Promise<string> => {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror = (error) => reject(error);
+          });
+        };
   
-      //   const base64Content = await getBase64(rawFile);
-      //   const filePath = `public/assets/${fieldNameValue}_pending.png`;
+        const base64Content = await getBase64(rawFile);
+        const filePath = `public/assets/${fieldNameValue}_pending.png`;
   
-      //   const gitRes = await fetch(
-      //     `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filePath}`,
-      //     {
-      //       method: 'PUT',
-      //       headers: {
-      //         Authorization: `token ${token}`,
-      //         'Content-Type': 'application/json',
-      //       },
-      //       body: JSON.stringify({
-      //         message: `upload: ${fieldNameValue} 랜딩 이미지 대기열 추가`,
-      //         content: base64Content,
-      //         branch: "main"
-      //       }),
-      //     }
-      //   );
+        const gitRes = await fetch(
+          `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filePath}`,
+          {
+            method: 'PUT',
+            headers: {
+              Authorization: `token ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              message: `upload: ${fieldNameValue} 랜딩 이미지 대기열 추가`,
+              content: base64Content,
+              branch: "main"
+            }),
+          }
+        );
   
-      //   if (!gitRes.ok) {
-      //     throw new Error("GitHub 이미지 등록에 실패했습니다. 토큰 권한을 확인해주세요.");
-      //   }
-      // }
+        if (!gitRes.ok) {
+          throw new Error("GitHub 이미지 등록에 실패했습니다. 토큰 권한을 확인해주세요.");
+        }
+      }
   
       const savePayload = {
         ...values,

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { collection, getDocs, deleteDoc, doc, query, orderBy } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { Table, Button, Space, Typography, Card } from "antd"; 
-import { Plus, Edit, Trash2, ExternalLink } from "lucide-react"; // 💡 ExternalLink 아이콘 추가
+import { Plus, Edit, Trash2, ExternalLink } from "lucide-react"; 
 
 const { Title } = Typography;
 
@@ -39,13 +39,9 @@ export default function LandingListPage({ onEdit, onAdd }: { onEdit: (id: string
     }
   };
 
-  // 💡 상세 랜딩페이지로 이동하는 핸들러 (새 탭 열기)
   const handleViewLanding = (recordName: string) => {
     const baseUrl = window.location.origin + window.location.pathname;
-    
-    // ↙ recordId 대신 실제 영문/숫자 name 항목이 주소에 들어가도록 수정
     const landingUrl = `${baseUrl}#/landing/${recordName}`;
-    
     window.open(landingUrl, "_blank"); 
   };
 
@@ -56,10 +52,9 @@ export default function LandingListPage({ onEdit, onAdd }: { onEdit: (id: string
     {
       title: "관리",
       key: "action",
-      width: 220, // 💡 버튼이 추가됨에 따라 컬럼 너비를 조금 늘렸습니다.
+      width: 220, 
       render: (_: any, record: any) => (
         <Space size="small">
-          {/* 💡 새 탭 보기 버튼 추가 */}
           <Button 
             type="dashed"
             icon={<ExternalLink size={14} />} 
@@ -85,7 +80,20 @@ export default function LandingListPage({ onEdit, onAdd }: { onEdit: (id: string
             새 랜딩페이지 추가
           </Button>
         </Space>
-        <Table dataSource={list} columns={columns} rowKey="id" loading={loading} />
+
+        {/* 💡 pagination 속성을 추가하여 한 페이지에 30개씩 보이도록 제어합니다. */}
+        <Table 
+          dataSource={list} 
+          columns={columns} 
+          rowKey="id" 
+          loading={loading} 
+          pagination={{
+            pageSize: 30, // 한 페이지에 노출할 데이터 수
+            // showSizeChanger: true, // 사용자가 10, 20, 30, 50개씩 보기 변경 가능 옵션
+            // pageSizeOptions: ["30", "100", "150", "500"], // 변경 가능한 선택지 구성
+            // placement: ["bottomCenter"] // 페이지네이션 번호 위치를 하단 중앙으로 배치
+          }}
+        />
       </Card>
     </div>
   );
