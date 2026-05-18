@@ -204,7 +204,9 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
   
       await setDoc(doc(db, "survey_list", targetDocId), savePayload, { merge: true });
   
-      alert(isGitHubApiRequired ? "저장되었습니다." : "수정되었습니다.");
+      let alertText = isGitHubApiRequired ? "저장되었습니다." : "수정되었습니다." + " 이미지 처리는 일정 시간이 소요됩니다.";
+      alert(alertText);
+
       onBack();
     } catch (e: any) {
       console.error(e);
