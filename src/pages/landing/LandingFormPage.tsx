@@ -295,7 +295,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
             <div style={{ fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>
               <strong style={{ color: '#334155' }}>💡 언제 입력해야 하나요?</strong><br />
               • <span style={{ color: '#2563eb', fontWeight: '600' }}>새로 만들 때</span> : 이미지 전송이 필요하므로 <strong>필수 입력</strong>입니다.<br />
-              • <span style={{ color: '#16a34a', fontWeight: '600' }}>기존 글 수정할 때</span> : 이미지를 바꿀 때만 입력합니다. <strong>(교체 안 하면 비워두셔도 됩니다)</strong>
+              • <span style={{ color: '#16a34a', fontWeight: '600' }}>이미지를 수정할 때</span> <strong>(이미지 교체 안 하면 비워두셔도 됩니다)</strong>
             </div>
           </div>
         </div>
@@ -343,17 +343,30 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
               }} 
               showUploadList={false}
             >
-              <Button icon={<UploadIcon size={14} />}>이미지 파일 선택 (교체 시에만 클릭)</Button>
+              <Button icon={<UploadIcon size={14} />}>이미지 파일 선택</Button>
             </Upload>
             
             <div style={{ padding: "16px", border: "1px dashed #d9d9d9", borderRadius: 4, textAlign: 'center', backgroundColor: '#fafafa', marginBottom: 20 }}>
-              <div style={{ marginBottom: 8 }}><Eye size={12} /> <Text type="secondary" style={{ fontSize: 12 }}>이미지 미리보기 상태</Text></div>
+              <div style={{ marginBottom: 8 }}><Eye size={12} /> <Text type="secondary" style={{ fontSize: 12 }}>이미지 미리보기</Text></div>
               
               {(!previewUrl && !currentName) || imgError ? (
-                <div style={{ padding: "30px 0", color: "#999", backgroundColor: "#f0f0f0", borderRadius: 4, border: "1px solid #e8e8e8" }}>
-                  <Text type="secondary" strong style={{ display: "block", marginBottom: 4 }}>[ 이미지 없음 ]</Text>
-                  <Text type="secondary" style={{ fontSize: "11px" }}>프로젝트의 /public/assets/{currentName || "시스템명"}.png 경로에 파일을 배치해 주세요.</Text>
-                </div>
+                /* 이미지 없을 때 클릭하면 파일 업로드 창이 뜨도록 <Upload>로 감쌈 */
+                <Upload
+                  beforeUpload={(file) => {
+                    setImgError(false);
+                    setTimestamp(new Date().getTime());
+                    setRawFile(file);
+                    const objectUrl = URL.createObjectURL(file);
+                    setPreviewUrl(objectUrl);
+                    return false; 
+                  }} 
+                  showUploadList={false}
+                >
+                  <div style={{ padding: "30px 0", color: "#999", backgroundColor: "#f0f0f0", borderRadius: 4, border: "1px solid #e8e8e8", cursor: "pointer" }}>
+                    <Text type="secondary" strong style={{ display: "block", marginBottom: 4 }}>[ 이미지 없음 ]</Text>
+                    <Text type="secondary" style={{ fontSize: "11px" }}>이미지를 선택해 주세요.</Text>
+                  </div>
+                </Upload>
               ) : (
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
                   <Image 
@@ -521,7 +534,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
           <Card size="small" style={{ border: '2px solid #27ae60', backgroundColor: '#f6ffed', marginBottom: 20 }}>
             <Form.Item 
               name="submit_button_text" 
-              label={<Text strong style={{ color: '#1e7e43', fontSize: 15 }}>[중요] 제출 버튼 문구</Text>}
+              label={<Text strong style={{ color: '#1e7e43', fontSize: 15 }}>제출 버튼 문구</Text>}
               rules={[{ required: true, message: "버튼 문구는 필수입니다." }]}
               style={{ marginBottom: 0 }}
             >
@@ -570,9 +583,39 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
             </Row>
           </Card>
 
-          <Button type="primary" htmlType="submit" loading={loading} block style={{ backgroundColor: '#27ae60', borderColor: '#27ae60', marginTop: 40, height: 50, fontSize: 17, fontWeight: 'bold' }}>
-            저장하기
-          </Button>
+          <div style={{ display: 'flex', gap: '10px', marginTop: 40 }}>
+            {/* 목록으로 버튼 (50%) */}
+            <Button 
+              icon={<ArrowLeft size={14} />} 
+              onClick={onBack} 
+              style={{ 
+                flex: 1, 
+                height: 50, 
+                fontSize: 17, 
+                fontWeight: 'bold' 
+              }}
+            >
+              목록으로
+            </Button>
+
+            {/* 저장하기 버튼 (50%) */}
+            <Button 
+              type="primary" 
+              htmlType="submit" 
+              loading={loading} 
+              style={{ 
+                flex: 1, 
+                backgroundColor: '#27ae60', 
+                borderColor: '#27ae60', 
+                height: 50, 
+                fontSize: 17, 
+                fontWeight: 'bold' 
+              }}
+            >
+              저장하기
+            </Button>
+          </div>
+
         </Form>
       </Card>
     </div>
