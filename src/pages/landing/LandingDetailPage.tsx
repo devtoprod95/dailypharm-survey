@@ -142,8 +142,8 @@ export default function LandingDetailPage() {
     try {
       const cleanPhone = form.phone.trim().replace(/-/g, "");
 
-      if (name.trim()) {
-        await addDoc(collection(db, name.trim()), {
+      if (name) {
+        await addDoc(collection(db, name), {
           target: landingData.name || name,
           name: landingData.fields?.name?.show ? form.name.trim() : "",
           phone: landingData.fields?.phone?.show ? cleanPhone : "",
