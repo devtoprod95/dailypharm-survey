@@ -349,7 +349,7 @@ function ExcelPageContent() {
             >
               {surveyList.map((survey) => (
                 <Option key={survey.id} value={survey.name}>
-                  {survey.title || survey.name}
+                  {survey.name || survey.title}
                 </Option>
               ))}
             </Select>

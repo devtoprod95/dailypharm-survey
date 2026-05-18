@@ -17,19 +17,19 @@ export interface PageConfig {
 
 export const PAGE_LIST: PageConfig[] = [
     {
-        title: "랜딩 페이지",
-        path: "/",
-        description: "사용자들이 보는 실제 랜딩 페이지",
+        title: "랜딩 관리",
+        path: "/landing",
+        description: "랜딩 관리 페이지",
         icon: <HomeIcon className="w-6 h-6" />,
         showInHeader: true
     },
-    {
-        title: "배포 관리",
-        path: "/deploy",
-        description: "랜딩 이미지 교체 및 GitHub 자동 배포",
-        icon: <RocketLaunchIcon className="w-6 h-6" />,
-        showInHeader: true
-    },
+    // {
+    //     title: "배포 관리",
+    //     path: "/deploy",
+    //     description: "랜딩 이미지 교체 및 GitHub 자동 배포",
+    //     icon: <RocketLaunchIcon className="w-6 h-6" />,
+    //     showInHeader: true
+    // },
     {
         title: "설문 리스트",
         path: "/excel-down",

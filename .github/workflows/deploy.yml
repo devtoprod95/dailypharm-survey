@@ -16,29 +16,42 @@ jobs:
         with:
           fetch-depth: 0 # 히스토리 전체를 가져와야 git push가 안전합니다.
 
-      # --- [추가된 로직] 이미지 로테이션 및 백업 ---
+      # --- [수정된 로직] 동적 이미지(컬렉션별) 로테이션 및 백업 ---
       - name: Rotate and Prepare Images
         run: |
-          # 1. 대기 중인 파일이 있는지 확인 (landing_pending.png)
-          if [ -f "public/assets/landing_pending.png" ]; then
-            echo "New image found. Preparing deployment..."
+          # 1. public/assets/ 폴더 내에 _pending.png로 끝나는 파일이 하나라도 있는지 확인
+          if ls public/assets/*_pending.png 1> /dev/null 2>&1; then
+            echo "New pending images found. Preparing deployment..."
             
-            # 2. 기존 landing.png가 있다면 landing_prev.png로 백업 (덮어쓰기)
-            if [ -f "public/assets/landing.png" ]; then
-              mv public/assets/landing.png public/assets/landing_prev.png
-            fi
+            # 2. _pending.png 파일들을 하나씩 돌면서 로테이션 처리
+            for pending_file in public/assets/*_pending.png; do
+              # 파일 경로에서 실제 파일명 추출 (예: public/assets/survey_pharm_start_pending.png)
+              echo "Processing: $pending_file"
+              
+              # _pending.png를 제거하여 실 서비스용 파일명 정의 (예: public/assets/survey_pharm_start.png)
+              real_file="${pending_file%_pending.png}.png"
+              # 이전 이미지 백업용 파일명 정의 (예: public/assets/survey_pharm_start_prev.png)
+              prev_file="${pending_file%_pending.png}_prev.png"
+              
+              # 기존에 사용 중인 실 서비스용 이미지가 있다면 _prev.png로 백업
+              if [ -f "$real_file" ]; then
+                mv "$real_file" "$prev_file"
+                echo "Backup created: $prev_file"
+              fi
+              
+              # 대기 중인 _pending 파일을 실 서비스용 파일명으로 변경
+              mv "$pending_file" "$real_file"
+              echo "Activated: $real_file"
+            done
             
-            # 3. 새 이미지를 실 서비스용 landing.png로 변경
-            mv public/assets/landing_pending.png public/assets/landing.png
-            
-            # 4. 변경 사항을 다시 저장소에 커밋 (빌드 전 파일 정리)
+            # 3. 변경 사항을 다시 저장소에 커밋 및 푸시 (빌드 전 파일 정리)
             git config --global user.name "github-actions[bot]"
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
             git add public/assets/
-            git commit -m "chore: rotate landing images [skip ci]" || echo "No changes to commit"
+            git commit -m "chore: rotate dynamic landing images [skip ci]" || echo "No changes to commit"
             git push origin main
           else
-            echo "No pending image found. Skipping rotation."
+            echo "No pending images found. Skipping rotation."
           fi
 
       # --- 기존 배포 로직 ---
