@@ -87,16 +87,6 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
     initForm();
   }, [id, form]);
 
-  // ✅ 최적화 2: name이 실제로 확정(포커스 아웃)되거나 변경될 때만 이미지 상태 초기화
-  const handleNameChange = (val: string) => {
-    const trimmed = val.trim();
-    setCurrentName(trimmed);
-    setImgError(false);
-    setTimestamp(new Date().getTime());
-    setPreviewUrl(null); 
-    setRawFile(null);
-  };
-
   // 2. 중복 체크 커스텀 벨리데이션 펑션
   const checkDuplicateName = async (_: any, value: string) => {
     if (!value) return Promise.resolve();
@@ -284,7 +274,6 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
             <Input 
               placeholder="예: survey_pharm_start" 
               disabled={!!id} 
-              onBlur={(e) => handleNameChange(e.target.value)} 
             />
           </Form.Item>
 
