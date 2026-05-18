@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../../lib/firebase"; 
-import { Form, Input, Button, Card, Checkbox, Space, Typography, Divider, Row, Col, Upload, Image } from "antd"; 
-import { ArrowLeft, Eye, Upload as UploadIcon, Key as KeyIcon, AlertCircle } from "lucide-react"; 
+import { Form, Input, Button, Card, Checkbox, Space, Typography, Divider, Row, Col, Upload, Image, Select } from "antd"; 
+import { ArrowLeft, Eye, Upload as UploadIcon, Key as KeyIcon, AlertCircle, Plus, Trash2 } from "lucide-react"; 
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
+const { Option } = Select;
 
 const DEFAULT_FORM_VALUES = {
   name: "",
@@ -15,11 +16,12 @@ const DEFAULT_FORM_VALUES = {
   show_subtitle: true,
   show_top_image: true,
   top_image_url: "",
-  fields: {
-    name: { label: "성함", show: true, required: true },
-    phone: { label: "연락처", show: true, required: true },
-    pharmacy: { label: "약국명", show: true, required: true },
-  },
+  // 초기 디폴트 3개 세팅
+  fields: [
+    { key: "name", label: "성함", type: "text", show: true, required: true },
+    { key: "phone", label: "연락처", type: "number", show: true, required: true },
+    { key: "pharmacy", label: "약국명", type: "text", show: true, required: true },
+  ],
   terms_privacy: { 
     title: "개인정보 수집 및 이용 동의 (필수)", 
     show: true, 
@@ -50,32 +52,55 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
   const [token, setToken] = useState(""); 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null); 
   const [rawFile, setRawFile] = useState<File | null>(null); 
-  
-  // ✅ 최적화 1: useWatch를 제거하고, 이미지 미리보기에 필요한 name만 별도 state로 관리
   const [currentName, setCurrentName] = useState("");
 
-  // 1. 데이터 로드 파트
+  // 1. 데이터 로드 파트 (수정: dbKey 대신 컴포넌트 표준인 'key' 명칭 사용 및 필드 구조 매핑)
   useEffect(() => {
     const initForm = async () => {
       setLoading(true);
       try {
+        const fixedFields = [
+          { key: "name", label: "성함", type: "text", show: true, required: true },
+          { key: "phone", label: "연락처", type: "number", show: true, required: true },
+          { key: "pharmacy", label: "약국명", type: "text", show: true, required: true },
+        ];
+
         if (id) {
           const docRef = doc(db, "survey_list", id);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             const data = docSnap.data();
+
+            // 기존 파베 데이터 중 고정 필드 3개를 제외한 나머지 커스텀 필드만 필터링 후 오름차순 정렬
+            const customFields = data.fields
+              ? Object.entries(data.fields)
+                  .filter(([key]) => !["name", "phone", "pharmacy"].includes(key))
+                  .sort(([keyA], [keyB]) => keyA.localeCompare(keyB, undefined, { numeric: true, sensitivity: 'base' }))
+                  .map(([key, value]: [string, any]) => ({
+                    key: key, // 🌟 원본 파베 필드명을 key 프로퍼티에 명시적으로 보존
+                    type: value.type || "text",
+                    ...value
+                  }))
+              : [];
+
+            const formattedFields = [...fixedFields, ...customFields];
+
             form.setFieldsValue({
               ...DEFAULT_FORM_VALUES,
               ...data, 
-              fields: { ...DEFAULT_FORM_VALUES.fields, ...data.fields },
+              fields: formattedFields,
               terms_privacy: { ...DEFAULT_FORM_VALUES.terms_privacy, ...data.terms_privacy },
               terms_third_party: { ...DEFAULT_FORM_VALUES.terms_third_party, ...data.terms_third_party },
             });
-            // ✅ 수정 모드일 때 기존 name 저장
-            setCurrentName(data.name || "");
+          
+            setCurrentName(data.name || id);
           }
         } else {
-          form.setFieldsValue(DEFAULT_FORM_VALUES);
+          // 신규 생성 시에도 고정 필드 3개는 기본 탑재
+          form.setFieldsValue({
+            ...DEFAULT_FORM_VALUES,
+            fields: fixedFields
+          });
           setCurrentName("");
         }
       } catch (error) {
@@ -87,7 +112,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
     initForm();
   }, [id, form]);
 
-  // 2. 중복 체크 커스텀 벨리데이션 펑션
+  // 2. 중복 체크 벨리데이션
   const checkDuplicateName = async (_: any, value: string) => {
     if (!value) return Promise.resolve();
     if (id) return Promise.resolve();
@@ -106,7 +131,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
     }
   };
 
-  // 3. 저장하기 파트
+  // 3. 저장하기 파트 (수정: 히든 필드로 동기화된 f.key 유무를 판단하여 키 고정)
   const onFinish = async (values: any) => {
     const fieldNameValue = values.name ? values.name.trim() : "";
     
@@ -139,13 +164,12 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
       return;
     }
   
-    // 🔥 [추가] 최종 저장/수정 여부 컨펌창 블록
     const confirmMessage = isEditMode 
       ? "입력하신 내용으로 수정하시겠습니까?" 
       : "새로운 랜딩 페이지를 생성하시겠습니까?";
       
     if (!window.confirm(confirmMessage)) {
-      return; // 사용자가 '취소'를 누르면 여기서 함수를 종료하여 진행을 막습니다.
+      return;
     }
   
     setLoading(true);
@@ -184,17 +208,42 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
         }
       }
   
+      // 🔥 [정밀 수정] 렌더링 시 보존한 key 속성을 기준으로 파베 객체 필드명 최종 추출
+      const dbFieldsObject: Record<string, any> = {};
+      if (Array.isArray(values.fields)) {
+        values.fields.forEach((f: any, index: number) => {
+          let systemKey = "";
+      
+          if (f.key) {
+            // hidden 아이템을 통해 name, phone, pharmacy 또는 기존 커스텀 필드명 키가 유실 없이 넘어온 경우 그대로 매핑
+            systemKey = f.key.trim();
+          } else {
+            // 새로 추가한 필드(f.key가 없는 신규 항목)는 고정 필드 3개를 예외 처리하여 field_4부터 넘버링 부여
+            systemKey = `field_${index + 1}`;
+          }
+          
+          dbFieldsObject[systemKey] = {
+            label: f.label || "",
+            type: f.type || "text",
+            show: f.show !== undefined ? !!f.show : true,
+            required: f.required !== undefined ? !!f.required : true
+          };
+        });
+      }
+
       const savePayload = {
         ...values,
         name: fieldNameValue, 
         top_image_url: finalImageUrl,
+        fields: dbFieldsObject, 
         created_at: isEditMode ? (form.getFieldValue("created_at") || serverTimestamp()) : serverTimestamp(),
         updated_at: serverTimestamp(),
       };
+
+      await setDoc(doc(db, "survey_list", targetDocId), savePayload);
   
-      await setDoc(doc(db, "survey_list", targetDocId), savePayload, { merge: true });
-  
-      let alertText = isGitHubApiRequired ? "저장되었습니다." : "수정되었습니다." + " 이미지 처리는 일정 시간이 소요됩니다.";
+      let alertText = isGitHubApiRequired ? "저장되었습니다." : "수정되었습니다.";
+      alertText += " 이미지 처리는 일정 시간이 소요됩니다.";
       alert(alertText);
 
       onBack();
@@ -227,7 +276,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
         <Title level={3}>{id ? "상세 내용 수정" : "새 랜딩 페이지 추가"}</Title>
         <Divider style={{ margin: "12px 0 24px 0" }} />
 
-        {/* GitHub Personal Access Token 입력란 */}
+        {/* GitHub Token 입력란 */}
         <div style={{ marginBottom: "28px", padding: "16px", backgroundColor: "#f4f7fa", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
             <KeyIcon size={16} style={{ color: '#4a5568' }} /> 
@@ -263,14 +312,13 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
           <Form.Item 
             name="name" 
             label="설문지명" 
-            validateTrigger="onBlur" // 포커스가 나갈 때 validation 실행
+            validateTrigger="onBlur"
             rules={[
               { required: true, message: "설문지명은 필수 항목입니다." },
               { pattern: /^[a-zA-Z0-9_-]+$/, message: "영문, 숫자, _, - 만 가능합니다." },
               { validator: checkDuplicateName }
             ]}
           >
-            {/* ✅ 최적화 3: 타이핑할 때는 닥치고 입력만 받고, 포커스가 빠져나갈 때(onBlur)만 한 번 state 변경 */}
             <Input 
               placeholder="예: survey_pharm_start" 
               disabled={!!id} 
@@ -291,7 +339,6 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
                 setRawFile(file);
                 const objectUrl = URL.createObjectURL(file);
                 setPreviewUrl(objectUrl);
-                // alert(`파일 지정 완료: ${file.name}`);
                 return false; 
               }} 
               showUploadList={false}
@@ -302,8 +349,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
             <div style={{ padding: "16px", border: "1px dashed #d9d9d9", borderRadius: 4, textAlign: 'center', backgroundColor: '#fafafa', marginBottom: 20 }}>
               <div style={{ marginBottom: 8 }}><Eye size={12} /> <Text type="secondary" style={{ fontSize: 12 }}>이미지 미리보기 상태</Text></div>
               
-              {/* ✅ 최적화 4: 무거운 전체 관찰(collectionName) 대신 가벼운 currentName state 사용 */}
-              {!currentName || imgError ? (
+              {(!previewUrl && !currentName) || imgError ? (
                 <div style={{ padding: "30px 0", color: "#999", backgroundColor: "#f0f0f0", borderRadius: 4, border: "1px solid #e8e8e8" }}>
                   <Text type="secondary" strong style={{ display: "block", marginBottom: 4 }}>[ 이미지 없음 ]</Text>
                   <Text type="secondary" style={{ fontSize: "11px" }}>프로젝트의 /public/assets/{currentName || "시스템명"}.png 경로에 파일을 배치해 주세요.</Text>
@@ -355,22 +401,111 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
 
           {/* 2. 입력 필드 설정 */}
           <SectionHeader num="2" title="입력 폼 필드 설정" />
-          {["name", "phone", "pharmacy"].map((fKey) => (
-            <Card size="small" style={{ marginBottom: 12, backgroundColor: '#fbfbfb' }} key={fKey}>
-              <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
-                <Form.Item name={["fields", fKey, "show"]} valuePropName="checked" style={{ margin: 0 }}><Checkbox>노출</Checkbox></Form.Item>
-                <Form.Item name={["fields", fKey, "required"]} valuePropName="checked" style={{ margin: 0 }}><Checkbox>필수</Checkbox></Form.Item>
-                <Form.Item name={["fields", fKey, "label"]} style={{ margin: 0, flex: 1 }}><Input placeholder="라벨명" /></Form.Item>
-              </div>
-            </Card>
-          ))}
+          <Form.List name="fields">
+            {(fields, { add, remove }) => {
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {fields.map((field, index) => {
+                    const isFixed = index < 3;
+
+                    return (
+                      <Card 
+                        size="small" 
+                        style={{ backgroundColor: isFixed ? '#f5f5f5' : '#fbfbfb', border: isFixed ? '1px solid #d9d9d9' : '1px solid #f0f0f0' }} 
+                        key={field.key}
+                        actions={
+                          !isFixed && fields.length > 3 ? [
+                            <Button 
+                              type="text" 
+                              danger 
+                              icon={<Trash2 size={14} />} 
+                              onClick={() => remove(field.name)}
+                              style={{ display: 'flex', alignItems: 'center', margin: '0 auto', gap: '4px' }}
+                            >
+                              필드 삭제
+                            </Button>
+                          ] : undefined
+                        }
+                      >
+                        {/* 🌟 [핵심 수정]: 폼 데이터를 전송할 때 고유 키(name, phone, pharmacy 등)가 날아가지 않도록 hidden 필드로 매핑 */}
+                        <Form.Item name={[field.name, 'key']} hidden>
+                          <Input />
+                        </Form.Item>
+
+                        {isFixed && (
+                          <div style={{ fontSize: '11px', color: '#8c8c8c', marginBottom: '6px', fontWeight: 'bold' }}>
+                            📌 시스템 기본 고정 필드
+                          </div>
+                        )}
+
+                        <Row gutter={[16, 12]} align="middle">
+                          {/* 라벨명 입력란 */}
+                          <Col xs={24} sm={10}>
+                            <Form.Item
+                              name={[field.name, 'label']}
+                              rules={[{ required: true, message: '화면에 표시할 라벨명은 필수입니다.' }]}
+                              style={{ margin: 0 }}
+                            >
+                              <Input placeholder="라벨명" disabled={isFixed} />
+                            </Form.Item>
+                          </Col>
+                          
+                          {/* 입력 타입 선택 */}
+                          <Col xs={24} sm={6}>
+                            <Form.Item
+                              name={[field.name, 'type']}
+                              rules={[{ required: true }]}
+                              style={{ margin: 0 }}
+                            >
+                              <Select placeholder="입력 타입 선택" disabled={isFixed}>
+                                <Option value="text">일반 텍스트</Option>
+                                <Option value="number">숫자 (전화번호 등)</Option>
+                                <Option value="email">이메일 주소</Option>
+                              </Select>
+                            </Form.Item>
+                          </Col>
+
+                          <Col xs={12} sm={4} style={{ textAlign: 'center' }}>
+                            <Form.Item name={[field.name, 'show']} valuePropName="checked" style={{ margin: 0 }}>
+                              <Checkbox disabled={isFixed}>노출 여부</Checkbox>
+                            </Form.Item>
+                          </Col>
+                          
+                          <Col xs={12} sm={4} style={{ textAlign: 'center' }}>
+                            <Form.Item name={[field.name, 'required']} valuePropName="checked" style={{ margin: 0 }}>
+                              <Checkbox disabled={isFixed}>필수 지정</Checkbox>
+                            </Form.Item>
+                          </Col>
+                        </Row>
+                      </Card>
+                    );
+                  })}
+                  
+                  {fields.length < 10 ? (
+                    <Button 
+                      type="dashed" 
+                      onClick={() => add({ show: true, required: false, type: "text", label: "" })} 
+                      block 
+                      icon={<Plus size={14} />}
+                      style={{ height: '45px', marginTop: '4px' }}
+                    >
+                      새로운 입력 필드 추가하기 ({fields.length}/10)
+                    </Button>
+                  ) : (
+                    <div style={{ textAlign: 'center', color: '#ff4d4f', fontSize: '13px', padding: '10px', backgroundColor: '#fff2f0', borderRadius: '6px', border: '1px dashed #ffccc7' }}>
+                      ⚠️ 입력 폼 필드는 최대 10개까지만 등록할 수 있습니다.
+                    </div>
+                  )}
+                </div>
+              );
+            }}
+          </Form.List>
 
           {/* 3. 개인정보 동의 영역 */}
           <SectionHeader num="3" title="개인정보 동의 영역" />
           {["terms_privacy", "terms_third_party"].map((tKey) => (
             <Card size="small" style={{ marginBottom: 16, backgroundColor: '#fbfbfb' }} key={tKey}>
               <Form.Item name={[tKey, "show"]} valuePropName="checked" style={{ marginBottom: 8 }}>
-                {/* text나 strong을 체크박스 안으로 격리시킵니다 */}
                 <Checkbox>
                   <strong>{tKey.includes('privacy') ? '수집·이용' : '제3자 제공'} 노출</strong>
                 </Checkbox>
@@ -405,7 +540,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
                 <Form.Item 
                   name="disagree_notice_text" 
                   label={<Text type="danger" style={{ fontSize: '12px' }}>미동의 시 안내 (빨간색 문구)</Text>} 
-                  style={{ marginBottom: 0 }}
+                  style={{ margin: 0 }}
                 >
                   <Input style={{ color: '#cf1322', fontWeight: '500' }} />
                 </Form.Item>
@@ -419,7 +554,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
                 <Form.Item name="show_footer_notice1" valuePropName="checked" noStyle><Checkbox>하단 노출1</Checkbox></Form.Item>
               </Col>
               <Col span={19}>
-                <Form.Item name="footer_notice_text1" label="최하단 안내 문구1" style={{ marginBottom: 0 }}><Input /></Form.Item>
+                <Form.Item name="footer_notice_text1" label="최하단 안내 문구1" style={{ margin: 0 }}><Input /></Form.Item>
               </Col>
             </Row>
           </Card>
@@ -430,7 +565,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
                 <Form.Item name="show_footer_notice2" valuePropName="checked" noStyle><Checkbox>하단 노출2</Checkbox></Form.Item>
               </Col>
               <Col span={19}>
-                <Form.Item name="footer_notice_text2" label="최하단 안내 문구2" style={{ marginBottom: 0 }}><Input /></Form.Item>
+                <Form.Item name="footer_notice_text2" label="최하단 안내 문구2" style={{ margin: 0 }}><Input /></Form.Item>
               </Col>
             </Row>
           </Card>

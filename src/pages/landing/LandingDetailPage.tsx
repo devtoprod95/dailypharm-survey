@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { db } from "../../lib/firebase"; 
 import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 
-// --- DB 스키마에 맞춘 기본값 체계 보정 ---
+// --- 기본 fallback 설정 체계 보정 ---
 const INITIAL_CONFIG = {
   title: "팜스타트 대행 서비스 신청",
   subtitle: "✨ 현재 팜스타트 패키지 신청 시 39만원 이상 절감 혜택 제공 중!",
@@ -16,21 +16,9 @@ const INITIAL_CONFIG = {
   disagree_notice_text: "※ 미동의 시 상담 및 이벤트 혜택 수령이 불가능합니다.",
   footer_notice_text1: "정보는 서비스 안내 및 상담 목적으로만 사용됩니다.",
   footer_notice_text2: "관련 문의 이메일 : pharmstart@dailypharm.com",
-  fields: {
-    name: { show: true, label: "성함", required: true },
-    phone: { show: true, label: "연락처", required: true },
-    pharmacy: { show: true, label: "약국명", required: true },
-  },
-  terms_privacy: {
-    show: true,
-    title: "개인정보 수집 및 이용 동의 (필수)",
-    content: ""
-  },
-  terms_third_party: {
-    show: true,
-    title: "개인정보 제3자 제공 동의 (필수)",
-    content: ""
-  }
+  fields: {}, // 동적 필드가 저장될 공간
+  terms_privacy: { show: true, title: "개인정보 수집 및 이용 동의 (필수)", content: "" },
+  terms_third_party: { show: true, title: "개인정보 제3자 제공 동의 (필수)", content: "" }
 };
 
 export default function LandingDetailPage() {
@@ -40,17 +28,13 @@ export default function LandingDetailPage() {
   const [landingData, setLandingData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const [form, setForm] = useState({ name: "", phone: "", pharmacy: "" });
+  // 🔥 동적 필드 입력을 위해 객체 형태로 상태 관리
+  const [form, setForm] = useState<Record<string, string>>({});
   const [agree1, setAgree1] = useState(false);
   const [agree2, setAgree2] = useState(false);
   const [errorField, setErrorField] = useState<string | null>(null);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const nameRef = useRef<HTMLDivElement>(null);
-  const phoneRef = useRef<HTMLDivElement>(null);
-  const pharmacyRef = useRef<HTMLDivElement>(null);
-  const agreeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchLandingConfig = async () => {
@@ -64,18 +48,23 @@ export default function LandingDetailPage() {
           const docSnap = querySnapshot.docs[0];
           const rawData = docSnap.data();
           
-          // 💡 파베 구조(Map 내부의 Map)에 대응하기 위해 깊은 병합 처리
-          setLandingData({
+          const mergedData = {
             ...INITIAL_CONFIG,
             ...rawData,
-            fields: {
-              name: { ...INITIAL_CONFIG.fields.name, ...rawData.fields?.name },
-              phone: { ...INITIAL_CONFIG.fields.phone, ...rawData.fields?.phone },
-              pharmacy: { ...INITIAL_CONFIG.fields.pharmacy, ...rawData.fields?.pharmacy },
-            },
+            fields: rawData.fields || {},
             terms_privacy: { ...INITIAL_CONFIG.terms_privacy, ...rawData.terms_privacy },
             terms_third_party: { ...INITIAL_CONFIG.terms_third_party, ...rawData.terms_third_party },
+          };
+
+          setLandingData(mergedData);
+
+          // 🔥 받아온 동적 필드 정보에 맞춰 form State 초기화 객체 생성
+          const initialFormValues: Record<string, string> = {};
+          Object.keys(mergedData.fields).forEach((key) => {
+            initialFormValues[key] = "";
           });
+          setForm(initialFormValues);
+
         } else {
           alert("존재하지 않거나 삭제된 랜딩 페이지입니다.");
           navigate("/", { replace: true });
@@ -90,73 +79,104 @@ export default function LandingDetailPage() {
     fetchLandingConfig();
   }, [name, navigate]);
 
+  // 🔥 입력 변경 핸들러 (타입별 입력 제어 추가)
+  const handleInputChange = (key: string, value: string, type: string) => {
+    // 숫자 타입(number)인 경우 문자가 들어오지 못하게 사전에 차단
+    if (type === "number") {
+      const onlyNums = value.replace(/[^0-9-]/g, "");
+      setForm((prev) => ({ ...prev, [key]: onlyNums }));
+      return;
+    }
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (isSubmitting || !landingData) return;
 
-    const phoneRegex = /^010-?\d{3,4}-?\d{4}$/;
     setErrorField(null);
 
-    // 💡 DB 구조에 맞춰 유효성 검사 조건문 변경 (fields.name.show 및 필수여부 체크)
-    if (landingData.fields?.name?.show && landingData.fields?.name?.required && !form.name.trim()) {
-      alert(`${landingData.fields.name.label || '성함'}을 입력해주세요.`);
-      setErrorField("name");
-      nameRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
+    // 🔥 동적 필드 유효성 검사 루프 파트
+    const phoneRegex = /^010-?\d{3,4}-?\d{4}$/;
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+    const fieldEntries = Object.entries(landingData.fields);
     
-    if (landingData.fields?.phone?.show) {
-      if (landingData.fields?.phone?.required && !form.phone.trim()) {
-        alert(`${landingData.fields.phone.label || '연락처'}를 입력해주세요.`);
-        setErrorField("phone");
-        phoneRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    for (const [key, config] of fieldEntries as [string, any][]) {
+      if (!config || config.show === false) continue;
+
+      const userValue = (form[key] || "").trim();
+
+      // 1. 필수값 체크
+      if (config.required && !userValue) {
+        alert(`[${config.label}] 항목을 입력해주세요.`);
+        setErrorField(key);
+        document.getElementById(`field-container-${key}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
         return;
-      } else if (form.phone.trim() && !phoneRegex.test(form.phone.trim())) {
-        alert("올바른 연락처 형식이 아닙니다. (예: 010-1234-5678)");
-        setErrorField("phone");
-        phoneRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-        return;
+      }
+
+      // 2. 입력값이 존재할 때 타입별 포맷 벨리데이션 체크
+      if (userValue) {
+        if (config.type === "number" && !phoneRegex.test(userValue)) {
+          alert(`[${config.label}] 항목에 올바른 연락처 형식을 입력해주세요. (예: 010-1234-5678)`);
+          setErrorField(key);
+          document.getElementById(`field-container-${key}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        }
+        if (config.type === "email" && !emailRegex.test(userValue)) {
+          alert(`[${config.label}] 항목에 올바른 이메일 주소 형식을 입력해주세요.`);
+          setErrorField(key);
+          document.getElementById(`field-container-${key}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        }
       }
     }
 
-    if (landingData.fields?.pharmacy?.show && landingData.fields?.pharmacy?.required && !form.pharmacy.trim()) {
-      alert(`${landingData.fields.pharmacy.label || '약국명'}을 입력해주세요.`);
-      setErrorField("pharmacy");
-      pharmacyRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-
+    // 약관동의 체크
     if (landingData.terms_privacy?.show && !agree1) {
       alert(`${landingData.terms_privacy.title || "개인정보 수집 및 이용 동의"}에 체크해 주세요.`);
-      agreeRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.getElementById("consent-section-wrapper")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     if (landingData.terms_third_party?.show && !agree2) {
       alert(`${landingData.terms_third_party.title || "개인정보 제3자 제공 동의"}에 체크해 주세요.`);
-      agreeRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.getElementById("consent-section-wrapper")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      const cleanPhone = form.phone.trim().replace(/-/g, "");
-
       if (name) {
+        // 🔥 어떤 데이터인지 보기 편하도록 라벨명을 키값으로 매핑한 전송용 결과 데이터 생성
+        const submissionAnswers: Record<string, string> = {};
+        Object.entries(landingData.fields).forEach(([key, config]: [string, any]) => {
+          if (config.show !== false) {
+            // 연락처 숫자 타입의 경우 하이픈을 제거하고 깨끗한 숫자만 가공해서 저장
+            let finalVal = form[key] || "";
+            if (config.type === "number") {
+              finalVal = finalVal.replace(/-/g, "");
+            }
+            submissionAnswers[config.label || key] = finalVal.trim();
+          }
+        });
+
         await addDoc(collection(db, name), {
           target: landingData.name || name,
-          name: landingData.fields?.name?.show ? form.name.trim() : "",
-          phone: landingData.fields?.phone?.show ? cleanPhone : "",
-          pharmacy: landingData.fields?.pharmacy?.show ? form.pharmacy.trim() : "",
+          ...form,
           created_at: serverTimestamp(),
         });
       } else {
         alert("신청이 실패했습니다. 관리자에 문의해주세요.");
-        return false;
+        return;
       }
 
       alert("신청이 완료되었습니다.");
-      setForm({ name: "", phone: "", pharmacy: "" });
+      
+      // Form 초기화
+      const clearedForm: Record<string, string> = {};
+      Object.keys(form).forEach((k) => (clearedForm[k] = ""));
+      setForm(clearedForm);
       setAgree1(false);
       setAgree2(false);
       
@@ -198,7 +218,7 @@ export default function LandingDetailPage() {
       <section className="w-full max-w-[480px] py-6 px-4 box-border">
         <div className="w-full bg-white rounded-3xl border border-gray-200 shadow-xl px-5 py-10 sm:px-8 box-border overflow-hidden">
           
-          {/* 타이틀 영역 제어 (show_subtitle, subtitle 명칭 보정) */}
+          {/* 타이틀 영역 */}
           {(landingData.show_title || landingData.show_subtitle) && (
             <div className="text-center mb-8">
               {landingData.show_title && (
@@ -214,33 +234,51 @@ export default function LandingDetailPage() {
             </div>
           )}
 
-          {/* 입력 인풋 필드 동적 노출 제어 (객체 내부 매핑 맵 구조 대응) */}
+          {/* 🔥 무작위 시스템 키 구조에 종속되지 않고, key(field_1, field_2...) 기준으로 오름차순 정렬하여 노출 */}
           <div className="space-y-5 mb-8 w-full">
-            {[
-              { key: "name", config: landingData.fields?.name, placeholder: "성함을 입력해주세요.", ref: nameRef },
-              { key: "phone", config: landingData.fields?.phone, placeholder: "010-0000-0000", ref: phoneRef },
-              { key: "pharmacy", config: landingData.fields?.pharmacy, placeholder: "약국 이름을 입력해주세요.", ref: pharmacyRef },
-            ].map(({ key, config, placeholder, ref }) => {
-              if (!config || config.show === false) return null;
-              return (
-                <div key={key} ref={ref} className="flex flex-col gap-2 w-full">
-                  <label className="text-[14px] font-bold text-gray-800 ml-1">
-                    {config.label} {config.required && "*"}
-                  </label>
-                  <input
-                    type="text"
-                    placeholder={placeholder}
-                    value={form[key as keyof typeof form]}
-                    onChange={(e) => setForm(prev => ({ ...prev, [key]: e.target.value }))}
-                    className={`w-full border rounded-xl px-4 py-3.5 text-[16px] outline-none transition-all duration-300 box-border ${errorField === key ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-teal-500"}`}
-                  />
-                </div>
-              );
-            })}
+            {Object.entries(landingData.fields)
+              // 🔥 name -> phone -> pharmacy 순서로 최상단 고정, 나머지는 오름차순 정렬
+              .sort(([keyA], [keyB]) => {
+                const fixedKeys = ["name", "phone", "pharmacy"];
+                const isA_Fixed = fixedKeys.includes(keyA);
+                const isB_Fixed = fixedKeys.includes(keyB);
+
+                if (isA_Fixed && isB_Fixed) {
+                  return fixedKeys.indexOf(keyA) - fixedKeys.indexOf(keyB);
+                }
+                if (isA_Fixed) return -1;
+                if (isB_Fixed) return 1;
+
+                return keyA.localeCompare(keyB, undefined, { numeric: true, sensitivity: 'base' });
+              })
+              .map(([key, config]: [string, any]) => {
+                if (!config || config.show === false) return null;
+                
+                // 인풋 플레이스홀더 분기 정의
+                let placeholderText = `${config.label}을(를) 입력해주세요.`;
+                if (config.type === "number") placeholderText = "010-0000-0000";
+                if (config.type === "email") placeholderText = "example@email.com";
+
+                return (
+                  <div key={key} id={`field-container-${key}`} className="flex flex-col gap-2 w-full">
+                    <label className="text-[14px] font-bold text-gray-800 ml-1">
+                      {config.label} {config.required && <span className="text-red-500">*</span>}
+                    </label>
+                    <input
+                      type={config.type === "email" ? "email" : "text"}
+                      inputMode={config.type === "number" ? "tel" : "text"}
+                      placeholder={placeholderText}
+                      value={form[key] || ""}
+                      onChange={(e) => handleInputChange(key, e.target.value, config.type)}
+                      className={`w-full border rounded-xl px-4 py-3.5 text-[16px] outline-none transition-all duration-300 box-border ${errorField === key ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-teal-500"}`}
+                    />
+                  </div>
+                );
+              })}
           </div>
 
-          {/* 동의 영역 (content 문자열을 줄바꿈단위로 깔끔히 노출) */}
-          <div ref={agreeRef}>
+          {/* 동의 영역 */}
+          <div id="consent-section-wrapper">
             {landingData.terms_privacy?.show && (
               <ConsentBlock 
                 title={landingData.terms_privacy.title} 
@@ -260,7 +298,7 @@ export default function LandingDetailPage() {
             )}
           </div>
 
-          {/* 추가된 주의사항 안내 문구 노출 제어 */}
+          {/* 경고 안내 문구 */}
           {landingData.show_disagree_notice && (
             <div className="text-center mb-6">
               <p className="text-red-500 text-[14px] font-bold break-keep">
@@ -269,7 +307,7 @@ export default function LandingDetailPage() {
             </div>
           )}
 
-          {/* 버튼명 DB 매핑 */}
+          {/* 제출 버튼 */}
           <button
             type="button"
             onClick={() => handleSubmit()}
@@ -279,13 +317,14 @@ export default function LandingDetailPage() {
             {isSubmitting ? "신청 데이터를 보내는 중..." : landingData.submit_button_text}
           </button>
 
-          {/* 푸터 안내문구 DB 매핑 */}
+          {/* 푸터 영역 */}
           {landingData.show_footer_notice1 && (
             <p className="text-center text-gray-800 text-[14px] mt-6 font-bold">
               {landingData.footer_notice_text1}
             </p>
           )}
 
+          {/* 푸터 안내문구 2 */}
           {landingData.show_footer_notice2 && (
             <p className="text-center text-gray-500 text-[12px] mt-3 font-bold break-keep">
               {landingData.footer_notice_text2}
@@ -297,7 +336,6 @@ export default function LandingDetailPage() {
   );
 }
 
-// 💡 통짜 데이터 텍스트 내부 줄바꿈 보존을 위해 whitespace-pre-line 테일윈드 스타일 적용
 function ConsentBlock({ title, checked, onChange, content }: any) {
   return (
     <div className="mb-6 w-full box-border">
