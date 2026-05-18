@@ -14,7 +14,6 @@ const Header = () => {
 
     // 새 창 열기 핸들러
     const handleOpenTab = (path: string, blank: boolean = false) => {
-        console.log(blank)
         if(blank){
           window.open(`#${path}`, '_blank');
         } else {

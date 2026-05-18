@@ -11,7 +11,7 @@ import {
   limit, 
   startAfter, 
   endBefore,
-  startAt, // 추가
+  startAt,
   limitToLast,
   where,
   getCountFromServer
@@ -31,6 +31,13 @@ interface SurveyData {
   created_at: any;
 }
 
+interface SurveyListData {
+  id: string;
+  title?: string;
+  name: string; 
+  created_at?: any;
+}
+
 function ExcelPageContent() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { message: msg, modal } = App.useApp();
@@ -42,15 +49,71 @@ function ExcelPageContent() {
   const [searchType, setSearchType] = useState<string>(searchParams.get("type") || "name");
   const [searchText, setSearchText] = useState<string>(searchParams.get("text") || "");
   
+  const [surveyList, setSurveyList] = useState<SurveyListData[]>([]);
+  
+  // [수정] URL 파라미터에 값이 없으면, 아래 useEffect에서 동기화해줄 로컬 상태와 결합합니다.
+  const [selectedCollectionName, setSelectedCollectionName] = useState<string>(searchParams.get("targetCollection") || "");
+
   const currentPage = Number(searchParams.get("page")) || 1;
   const firstId = searchParams.get("firstId");
   const lastId = searchParams.get("lastId");
 
   const PAGE_SIZE = 10;
 
-  const fetchTotalCount = async (type: string, text: string) => {
+  // survey_list 최신순 조회 및 첫 번째 항목의 'name'을 기본 컬렉션으로 지정
+  const fetchSurveyList = async () => {
     try {
-      const coll = collection(db, "survey");
+      const listQuery = query(collection(db, "survey_list"), orderBy("created_at", "desc"));
+      const querySnapshot = await getDocs(listQuery);
+      
+      const list = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as SurveyListData[];
+      
+      setSurveyList(list);
+
+      // URL에 targetCollection이 없는 최초 직접 접속(`/#/excel-down`)일 때
+      if (list.length > 0 && !searchParams.get("targetCollection")) {
+        const defaultTarget = list[0].name;
+        
+        // 1. 셀렉트 박스 상태 즉시 세팅 (비어 보이지 않게 처리)
+        setSelectedCollectionName(defaultTarget);
+        
+        // 2. URL 파라미터 업데이트
+        setSearchParams(
+          {
+            targetCollection: defaultTarget,
+            page: "1",
+            type: "name",
+            text: ""
+          },
+          { replace: true }
+        );
+      }
+    } catch (error) {
+      console.error("survey_list 로드 실패:", error);
+      const fallbackSnapshot = await getDocs(collection(db, "survey_list"));
+      const fallbackList = fallbackSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SurveyListData[];
+      setSurveyList(fallbackList);
+      if (fallbackList.length > 0 && !searchParams.get("targetCollection")) {
+        const defaultTarget = fallbackList[0].name;
+        setSelectedCollectionName(defaultTarget);
+        setSearchParams({ targetCollection: defaultTarget, page: "1", type: "name", text: "" }, { replace: true });
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchSurveyList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 동적 컬렉션(targetCollection)에 맞게 카운트 가져오기
+  const fetchTotalCount = async (targetCollection: string, type: string, text: string) => {
+    if (!targetCollection) return;
+    try {
+      const coll = collection(db, targetCollection);
       let q = query(coll);
       if (text.trim() !== "") {
         q = query(coll, where(type, "==", text.trim()));
@@ -62,10 +125,17 @@ function ExcelPageContent() {
     }
   };
 
-  const fetchData = useCallback(async (direction: 'first' | 'next' | 'prev' | 'stay', type: string, text: string) => {
+  // 동적 컬렉션(targetCollection)에 맞춰 데이터 페칭
+  const fetchData = useCallback(async (
+    direction: 'first' | 'next' | 'prev' | 'stay', 
+    targetCollection: string, 
+    type: string, 
+    text: string
+  ) => {
+    if (!targetCollection) return;
     setLoading(true);
     try {
-      const collRef = collection(db, "survey");
+      const collRef = collection(db, targetCollection);
       let queryConstraints: any[] = [];
 
       if (text.trim() !== "") {
@@ -76,17 +146,16 @@ function ExcelPageContent() {
       }
 
       let q;
-      // [수정] stay: 새로고침 시 현재 ID 좌표부터 데이터를 가져옴
       if (direction === 'stay' && firstId) {
-        const cursorDoc = await getDoc(doc(db, "survey", firstId));
+        const cursorDoc = await getDoc(doc(db, targetCollection, firstId));
         q = query(collRef, ...queryConstraints, startAt(cursorDoc), limit(PAGE_SIZE));
       } 
       else if (direction === 'next' && lastId) {
-        const cursorDoc = await getDoc(doc(db, "survey", lastId));
+        const cursorDoc = await getDoc(doc(db, targetCollection, lastId));
         q = query(collRef, ...queryConstraints, startAfter(cursorDoc), limit(PAGE_SIZE));
       } 
       else if (direction === 'prev' && firstId) {
-        const cursorDoc = await getDoc(doc(db, "survey", firstId));
+        const cursorDoc = await getDoc(doc(db, targetCollection, firstId));
         q = query(collRef, ...queryConstraints, endBefore(cursorDoc), limitToLast(PAGE_SIZE));
       } 
       else {
@@ -104,19 +173,21 @@ function ExcelPageContent() {
         const newFirstId = querySnapshot.docs[0].id;
         const newLastId = querySnapshot.docs[querySnapshot.docs.length - 1].id;
         
-        // 방향에 따른 페이지 계산
         let nextPage = currentPage;
         if (direction === 'first') nextPage = 1;
         else if (direction === 'next') nextPage = currentPage + 1;
         else if (direction === 'prev') nextPage = currentPage - 1;
 
         setSearchParams({
+          targetCollection: targetCollection,
           page: String(nextPage),
           firstId: newFirstId,
           lastId: newLastId,
           type: type,
           text: text
         });
+      } else {
+        setData([]);
       }
     } catch (error: any) {
       console.error("Firebase Error:", error);
@@ -126,26 +197,45 @@ function ExcelPageContent() {
     }
   }, [firstId, lastId, currentPage, setSearchParams, msg]);
 
-  // [수정] 검색 파라미터가 바뀔 때만 실행되도록 하되, 새로고침 시 'stay' 모드 발동
+  // URL 파라미터(targetCollection 등) 변화를 감지하여 데이터 로드 및 로컬 상태 동기화
   useEffect(() => {
+    const qCollection = searchParams.get("targetCollection") || "";
     const qText = searchParams.get("text") || "";
     const qType = searchParams.get("type") || "name";
     
     setSearchText(qText);
     setSearchType(qType);
-    fetchTotalCount(qType, qText);
 
-    // 만약 1페이지가 아니고 좌표(ID)가 있다면 그 지점부터 가져오기(stay)
-    if (currentPage > 1 && firstId) {
-      fetchData('stay', qType, qText);
+    if (qCollection) {
+      // [수정] URL 파라미터가 바뀔 때 셀렉트 박스 표시 상태도 함께 동기화
+      setSelectedCollectionName(qCollection);
+      fetchTotalCount(qCollection, qType, qText);
+
+      if (currentPage > 1 && firstId) {
+        fetchData('stay', qCollection, qType, qText);
+      } else {
+        fetchData('first', qCollection, qType, qText);
+      }
     } else {
-      fetchData('first', qType, qText);
+      setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.get("text"), searchParams.get("type")]); 
+  }, [searchParams.get("targetCollection"), searchParams.get("text"), searchParams.get("type")]); 
+
+  // 설문지 변경 시 해당 문서의 name 필드값(컬렉션명)으로 파라미터 교체
+  const handleSurveyChange = (collectionName: string) => {
+    setSelectedCollectionName(collectionName); // [수정] 상태 변경 선반영
+    setSearchParams({
+      targetCollection: collectionName,
+      page: "1",
+      type: "name",
+      text: ""
+    });
+  };
 
   const handleSearch = () => {
     setSearchParams({
+      targetCollection: selectedCollectionName,
       page: "1",
       type: searchType,
       text: searchText
@@ -155,13 +245,19 @@ function ExcelPageContent() {
   const handleRefresh = () => {
     setSearchText("");
     setSearchType("name");
-    setSearchParams({});
+    if (surveyList.length > 0) {
+      setSelectedCollectionName(surveyList[0].name);
+      setSearchParams({ targetCollection: surveyList[0].name });
+    } else {
+      setSearchParams({});
+    }
   };
 
   const executeDownload = async () => {
+    if (!selectedCollectionName) return;
     setLoading(true);
     try {
-      const collRef = collection(db, "survey");
+      const collRef = collection(db, selectedCollectionName);
       let queryConstraints: any[] = [];
       const qText = searchParams.get("text") || "";
       const qType = searchParams.get("type") || "name";
@@ -242,6 +338,23 @@ function ExcelPageContent() {
             </Space>
           </Space>
 
+          {/* 설문지 선택 레이아웃 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <Text type="secondary" strong>설문지 선택</Text>
+            <Select 
+              value={selectedCollectionName || undefined} 
+              style={{ width: '100%', maxWidth: '300px' }} 
+              onChange={handleSurveyChange}
+              placeholder="설문지를 선택해주세요"
+            >
+              {surveyList.map((survey) => (
+                <Option key={survey.id} value={survey.name}>
+                  {survey.title || survey.name}
+                </Option>
+              ))}
+            </Select>
+          </div>
+
           <Space.Compact style={{ width: '100%', maxWidth: '600px' }}>
             <Select value={searchType} style={{ width: '120px' }} onChange={(val) => setSearchType(val)}>
               <Option value="name">성함</Option>
@@ -263,14 +376,14 @@ function ExcelPageContent() {
             <Button 
               icon={<ChevronLeft size={16} />} 
               disabled={currentPage === 1 || loading} 
-              onClick={() => fetchData('prev', searchType, searchText)}
+              onClick={() => fetchData('prev', selectedCollectionName, searchType, searchText)}
             >
               이전
             </Button>
             <Text strong>{currentPage} / {Math.ceil(total / PAGE_SIZE) || 1}</Text>
             <Button 
               disabled={(currentPage * PAGE_SIZE) >= total || loading} 
-              onClick={() => fetchData('next', searchType, searchText)}
+              onClick={() => fetchData('next', selectedCollectionName, searchType, searchText)}
             >
               다음 <ChevronRight size={16} style={{ marginLeft: '4px' }} />
             </Button>
