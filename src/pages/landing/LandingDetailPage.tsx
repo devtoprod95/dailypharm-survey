@@ -148,22 +148,25 @@ export default function LandingDetailPage() {
 
     try {
       if (name) {
-        // 🔥 어떤 데이터인지 보기 편하도록 라벨명을 키값으로 매핑한 전송용 결과 데이터 생성
+        // 🔥 [수정/확인] 라벨명을 키값으로 매핑한 전송용 결과 데이터 생성
         const submissionAnswers: Record<string, string> = {};
         Object.entries(landingData.fields).forEach(([key, config]: [string, any]) => {
           if (config.show !== false) {
-            // 연락처 숫자 타입의 경우 하이픈을 제거하고 깨끗한 숫자만 가공해서 저장
             let finalVal = form[key] || "";
+            // 연락처 숫자 타입의 경우 하이픈을 제거하고 깨끗한 숫자만 가공해서 저장
             if (config.type === "number") {
               finalVal = finalVal.replace(/-/g, "");
             }
-            submissionAnswers[config.label || key] = finalVal.trim();
+            // config.label이 있으면 라벨명으로, 없으면 원래 키(field_4 등)로 저장
+            const finalKey = config.label ? config.label.trim() : key;
+            submissionAnswers[finalKey] = finalVal.trim();
           }
         });
 
+        // 🔥 [변경] 기존의 ...form 대신 라벨명으로 정제된 ...submissionAnswers를 전송합니다.
         await addDoc(collection(db, name), {
           target: landingData.name || name,
-          ...form,
+          ...submissionAnswers, 
           created_at: serverTimestamp(),
         });
       } else {

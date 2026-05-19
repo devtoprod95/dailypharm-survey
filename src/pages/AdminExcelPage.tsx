@@ -25,10 +25,9 @@ const { Option } = Select;
 
 interface SurveyData {
   id: string;
-  name: string;
-  phone: string;
-  pharmacy: string;
+  target?: string;
   created_at: any;
+  [key: string]: any; 
 }
 
 interface SurveyListData {
@@ -46,12 +45,12 @@ function ExcelPageContent() {
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
 
-  const [searchType, setSearchType] = useState<string>(searchParams.get("type") || "name");
+  const [dynamicKeys, setDynamicKeys] = useState<string[]>([]);
+
+  const [searchType, setSearchType] = useState<string>(searchParams.get("type") || "성함");
   const [searchText, setSearchText] = useState<string>(searchParams.get("text") || "");
   
   const [surveyList, setSurveyList] = useState<SurveyListData[]>([]);
-  
-  // [수정] URL 파라미터에 값이 없으면, 아래 useEffect에서 동기화해줄 로컬 상태와 결합합니다.
   const [selectedCollectionName, setSelectedCollectionName] = useState<string>(searchParams.get("targetCollection") || "");
 
   const currentPage = Number(searchParams.get("page")) || 1;
@@ -60,7 +59,6 @@ function ExcelPageContent() {
 
   const PAGE_SIZE = 10;
 
-  // survey_list 최신순 조회 및 첫 번째 항목의 'name'을 기본 컬렉션으로 지정
   const fetchSurveyList = async () => {
     try {
       const listQuery = query(collection(db, "survey_list"), orderBy("created_at", "desc"));
@@ -73,19 +71,14 @@ function ExcelPageContent() {
       
       setSurveyList(list);
 
-      // URL에 targetCollection이 없는 최초 직접 접속(`/#/excel-down`)일 때
       if (list.length > 0 && !searchParams.get("targetCollection")) {
         const defaultTarget = list[0].name;
-        
-        // 1. 셀렉트 박스 상태 즉시 세팅 (비어 보이지 않게 처리)
         setSelectedCollectionName(defaultTarget);
-        
-        // 2. URL 파라미터 업데이트
         setSearchParams(
           {
             targetCollection: defaultTarget,
             page: "1",
-            type: "name",
+            type: "성함", 
             text: ""
           },
           { replace: true }
@@ -99,17 +92,15 @@ function ExcelPageContent() {
       if (fallbackList.length > 0 && !searchParams.get("targetCollection")) {
         const defaultTarget = fallbackList[0].name;
         setSelectedCollectionName(defaultTarget);
-        setSearchParams({ targetCollection: defaultTarget, page: "1", type: "name", text: "" }, { replace: true });
+        setSearchParams({ targetCollection: defaultTarget, page: "1", type: "성함", text: "" }, { replace: true });
       }
     }
   };
 
   useEffect(() => {
     fetchSurveyList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 동적 컬렉션(targetCollection)에 맞게 카운트 가져오기
   const fetchTotalCount = async (targetCollection: string, type: string, text: string) => {
     if (!targetCollection) return;
     try {
@@ -125,7 +116,6 @@ function ExcelPageContent() {
     }
   };
 
-  // 동적 컬렉션(targetCollection)에 맞춰 데이터 페칭
   const fetchData = useCallback(async (
     direction: 'first' | 'next' | 'prev' | 'stay', 
     targetCollection: string, 
@@ -170,6 +160,28 @@ function ExcelPageContent() {
 
       if (rows.length > 0) {
         setData(rows);
+
+        const excludedKeys = ["id", "created_at", "target"];
+        const keysSet = new Set<string>();
+        rows.forEach(row => {
+          Object.keys(row).forEach(key => {
+            if (!excludedKeys.includes(key)) {
+              keysSet.add(key);
+            }
+          });
+        });
+        
+        const sortedKeys = Array.from(keysSet).sort((a, b) => {
+          const priority = ["성함", "연락처", "약국명"];
+          const idxA = priority.indexOf(a);
+          const idxB = priority.indexOf(b);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          if (idxA !== -1) return -1;
+          if (idxB !== -1) return 1;
+          return a.localeCompare(b);
+        });
+        setDynamicKeys(sortedKeys);
+
         const newFirstId = querySnapshot.docs[0].id;
         const newLastId = querySnapshot.docs[querySnapshot.docs.length - 1].id;
         
@@ -188,6 +200,7 @@ function ExcelPageContent() {
         });
       } else {
         setData([]);
+        setDynamicKeys([]);
       }
     } catch (error: any) {
       console.error("Firebase Error:", error);
@@ -197,17 +210,15 @@ function ExcelPageContent() {
     }
   }, [firstId, lastId, currentPage, setSearchParams, msg]);
 
-  // URL 파라미터(targetCollection 등) 변화를 감지하여 데이터 로드 및 로컬 상태 동기화
   useEffect(() => {
     const qCollection = searchParams.get("targetCollection") || "";
     const qText = searchParams.get("text") || "";
-    const qType = searchParams.get("type") || "name";
+    const qType = searchParams.get("type") || "성함"; 
     
     setSearchText(qText);
     setSearchType(qType);
 
     if (qCollection) {
-      // [수정] URL 파라미터가 바뀔 때 셀렉트 박스 표시 상태도 함께 동기화
       setSelectedCollectionName(qCollection);
       fetchTotalCount(qCollection, qType, qText);
 
@@ -219,16 +230,14 @@ function ExcelPageContent() {
     } else {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.get("targetCollection"), searchParams.get("text"), searchParams.get("type")]); 
 
-  // 설문지 변경 시 해당 문서의 name 필드값(컬렉션명)으로 파라미터 교체
   const handleSurveyChange = (collectionName: string) => {
-    setSelectedCollectionName(collectionName); // [수정] 상태 변경 선반영
+    setSelectedCollectionName(collectionName);
     setSearchParams({
       targetCollection: collectionName,
       page: "1",
-      type: "name",
+      type: "성함", 
       text: ""
     });
   };
@@ -244,7 +253,7 @@ function ExcelPageContent() {
 
   const handleRefresh = () => {
     setSearchText("");
-    setSearchType("name");
+    setSearchType("성함"); 
     if (surveyList.length > 0) {
       setSelectedCollectionName(surveyList[0].name);
       setSearchParams({ targetCollection: surveyList[0].name });
@@ -260,7 +269,7 @@ function ExcelPageContent() {
       const collRef = collection(db, selectedCollectionName);
       let queryConstraints: any[] = [];
       const qText = searchParams.get("text") || "";
-      const qType = searchParams.get("type") || "name";
+      const qType = searchParams.get("type") || "성함"; 
 
       if (qText.trim() !== "") {
         queryConstraints.push(where(qType, "==", qText.trim()));
@@ -272,14 +281,49 @@ function ExcelPageContent() {
       const querySnapshot = await getDocs(q);
       const allData = querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) })) as SurveyData[];
       
-      const headers = ["No", "신청시간", "성함", "연락처", "약국명"];
-      const rows = allData.map((item, index) => [
-        allData.length - index,
-        item.created_at?.toDate()?.toLocaleString() || "미정",
-        item.name,
-        item.phone,
-        item.pharmacy
-      ]);
+      const keysSet = new Set<string>();
+      allData.forEach(row => {
+        Object.keys(row).forEach(key => {
+          if (!["id", "created_at", "target"].includes(key)) keysSet.add(key);
+        });
+      });
+      
+      const sortedKeys = Array.from(keysSet).sort((a, b) => {
+        const priority = ["성함", "연락처", "약국명"];
+        const idxA = priority.indexOf(a);
+        const idxB = priority.indexOf(b);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return a.localeCompare(b);
+      });
+
+      const headers = ["No", "신청시간", ...sortedKeys];
+
+      const rows = allData.map((item, index) => {
+        const rowCells = [
+          String(allData.length - index),
+          item.created_at?.toDate()?.toLocaleString() || "미정"
+        ];
+        
+        sortedKeys.forEach(key => {
+          let val = item[key] !== undefined ? String(item[key]) : "";
+          
+          // 🔥 [수정 1] 0 잘림 현상 방지: 0으로 시작하는 숫자 배열 혹은 '연락처' 필드는 엑셀 수식 형태 `="값"`으로 변환하여 안전하게 문자로 고정합니다.
+          if (key === "연락처" || (val.startsWith("0") && !isNaN(Number(val.replace(/-/g, ""))))) {
+            val = `="${val}"`; 
+          }
+
+          if (val.includes(",") || val.includes("\n") || val.includes('"')) {
+            // 수식 내부 큰따옴표 이스케이프 구조 처리
+            rowCells.push(`"${val.replace(/"/g, '""')}"`);
+          } else {
+            rowCells.push(val);
+          }
+        });
+        return rowCells;
+      });
+
       const csvContent = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
@@ -290,6 +334,7 @@ function ExcelPageContent() {
       URL.revokeObjectURL(url);
       msg.success("다운로드 완료");
     } catch (err) {
+      console.error(err);
       msg.error("다운로드 실패");
     } finally {
       setLoading(false);
@@ -304,10 +349,27 @@ function ExcelPageContent() {
       align: "center", 
       render: (_, __, index) => total - ((currentPage - 1) * PAGE_SIZE) - index 
     },
-    { title: "신청시간", dataIndex: "created_at", key: "created_at", render: (val) => val?.toDate()?.toLocaleString() || "미정" },
-    { title: "성함", dataIndex: "name", key: "name", render: (text) => <Text strong>{text}</Text> },
-    { title: "연락처", dataIndex: "phone", key: "phone" },
-    { title: "약국명", dataIndex: "pharmacy", key: "pharmacy" },
+    { 
+      title: "신청시간", 
+      dataIndex: "created_at", 
+      key: "created_at", 
+      width: 220, // 🔥 [수정 2] 너비를 180에서 220으로 확장
+      render: (val) => (
+        // 🔥 줄바꿈 방지 스타일 적용
+        <span style={{ whiteSpace: "nowrap" }}>
+          {val?.toDate()?.toLocaleString() || "미정"}
+        </span>
+      )
+    },
+    ...dynamicKeys.map(key => ({
+      title: key,
+      dataIndex: key,
+      key: key,
+      render: (text: any) => {
+        if (key === "성함") return <Text strong>{text || "-"}</Text>;
+        return text || "-";
+      }
+    }))
   ];
 
   return (
@@ -329,7 +391,7 @@ function ExcelPageContent() {
                 style={{ backgroundColor: '#27ae60', borderColor: '#27ae60' }}
                 onClick={() => modal.confirm({
                   title: '데이터 다운로드',
-                  content: '내역을 CSV로 받으시겠습니까?',
+                  content: '내역을 CSV로 받으시겠습니까? (추가된 모든 동적 항목 포함)',
                   onOk: executeDownload
                 })}
               >
@@ -338,7 +400,6 @@ function ExcelPageContent() {
             </Space>
           </Space>
 
-          {/* 설문지 선택 레이아웃 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <Text type="secondary" strong>설문지 선택</Text>
             <Select 
@@ -357,9 +418,9 @@ function ExcelPageContent() {
 
           <Space.Compact style={{ width: '100%', maxWidth: '600px' }}>
             <Select value={searchType} style={{ width: '120px' }} onChange={(val) => setSearchType(val)}>
-              <Option value="name">성함</Option>
-              <Option value="phone">연락처</Option>
-              <Option value="pharmacy">약국명</Option>
+              <Option value="성함">성함</Option>
+              <Option value="연락처">연락처</Option>
+              <Option value="약국명">약국명</Option>
             </Select>
             <Input 
               placeholder="완전 일치 검색" 
@@ -370,7 +431,14 @@ function ExcelPageContent() {
             <Button type="primary" icon={<Search size={16} />} onClick={handleSearch}>검색</Button>
           </Space.Compact>
 
-          <Table dataSource={data} columns={columns} rowKey="id" loading={loading} pagination={false} />
+          <Table 
+            dataSource={data} 
+            columns={columns} 
+            rowKey="id" 
+            loading={loading} 
+            pagination={false} 
+            scroll={{ x: 'max-content' }}
+          />
 
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', marginTop: '20px' }}>
             <Button 
