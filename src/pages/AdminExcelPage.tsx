@@ -391,7 +391,7 @@ function ExcelPageContent() {
                 style={{ backgroundColor: '#27ae60', borderColor: '#27ae60' }}
                 onClick={() => modal.confirm({
                   title: '데이터 다운로드',
-                  content: '내역을 CSV로 받으시겠습니까? (추가된 모든 동적 항목 포함)',
+                  content: '내역을 CSV로 받으시겠습니까?',
                   onOk: executeDownload
                 })}
               >
