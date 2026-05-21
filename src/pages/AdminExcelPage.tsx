@@ -1,398 +1,375 @@
-import { useEffect, useState, useCallback } from "react";
-import { useSearchParams } from "react-router-dom"; 
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { db } from "../lib/firebase";
-import { 
-  collection, 
-  getDocs, 
-  getDoc, 
-  doc, 
-  query, 
-  orderBy, 
-  limit, 
-  startAfter, 
-  endBefore,
-  startAt,
-  limitToLast,
-  where,
-  getCountFromServer
+import {
+  collection, getDocs, getDoc, doc, query,
+  orderBy, limit, startAfter, endBefore, startAt,
+  limitToLast, where, getCountFromServer, deleteDoc
 } from "firebase/firestore";
-import { Table, Button, Space, Typography, Card, App, ConfigProvider, Input, Select } from "antd";
-import { Download, RefreshCw, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Table, Button, Space, Typography, Card, App, ConfigProvider, Input, Select, Popconfirm } from "antd";
+import { Download, RefreshCw, Search, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import type { ColumnsType } from "antd/es/table";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
+const PAGE_SIZE = 10;
+const PRIORITY_KEYS = ["성함", "연락처", "약국명"];
+const EXCLUDED_KEYS = ["id", "created_at", "target"];
+
 interface SurveyData {
   id: string;
   target?: string;
   created_at: any;
-  [key: string]: any; 
+  [key: string]: any;
 }
 
 interface SurveyListData {
   id: string;
   title?: string;
-  name: string; 
+  name: string;
   created_at?: any;
+}
+
+// URL 파라미터에서 firstId/lastId를 완전히 제거하는 유틸
+function buildParams(base: Record<string, string>, remove: string[] = []) {
+  const p = new URLSearchParams(base);
+  remove.forEach(k => p.delete(k));
+  return p;
+}
+
+// 동적 키 정렬 로직
+function sortDynamicKeys(keys: Set<string>): string[] {
+  return Array.from(keys).sort((a, b) => {
+    const ai = PRIORITY_KEYS.indexOf(a);
+    const bi = PRIORITY_KEYS.indexOf(b);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return a.localeCompare(b);
+  });
 }
 
 function ExcelPageContent() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { message: msg, modal } = App.useApp();
-  
+
   const [data, setData] = useState<SurveyData[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
-
   const [dynamicKeys, setDynamicKeys] = useState<string[]>([]);
-
-  const [searchType, setSearchType] = useState<string>(searchParams.get("type") || "성함");
-  const [searchText, setSearchText] = useState<string>(searchParams.get("text") || "");
-  
   const [surveyList, setSurveyList] = useState<SurveyListData[]>([]);
-  const [selectedCollectionName, setSelectedCollectionName] = useState<string>(searchParams.get("targetCollection") || "");
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
+  // URL에서 파생되는 값들
+  const selectedCollectionName = searchParams.get("targetCollection") || "";
+  const searchType = searchParams.get("type") || "성함";
+  const searchText = searchParams.get("text") || "";
   const currentPage = Number(searchParams.get("page")) || 1;
-  const firstId = searchParams.get("firstId");
-  const lastId = searchParams.get("lastId");
+  const firstId = searchParams.get("firstId") || "";
+  const lastId = searchParams.get("lastId") || "";
 
-  const PAGE_SIZE = 10;
+  // 로컬 검색 입력값 (URL과 분리)
+  const [localSearchType, setLocalSearchType] = useState(searchType);
+  const [localSearchText, setLocalSearchText] = useState(searchText);
 
-  const fetchSurveyList = async () => {
-    try {
-      const listQuery = query(collection(db, "survey_list"), orderBy("created_at", "desc"));
-      const querySnapshot = await getDocs(listQuery);
-      
-      const list = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as SurveyListData[];
-      
-      setSurveyList(list);
-
-      if (list.length > 0 && !searchParams.get("targetCollection")) {
-        const defaultTarget = list[0].name;
-        setSelectedCollectionName(defaultTarget);
-        setSearchParams(
-          {
-            targetCollection: defaultTarget,
-            page: "1",
-            type: "성함", 
-            text: ""
-          },
-          { replace: true }
-        );
-      }
-    } catch (error) {
-      console.error("survey_list 로드 실패:", error);
-      const fallbackSnapshot = await getDocs(collection(db, "survey_list"));
-      const fallbackList = fallbackSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SurveyListData[];
-      setSurveyList(fallbackList);
-      if (fallbackList.length > 0 && !searchParams.get("targetCollection")) {
-        const defaultTarget = fallbackList[0].name;
-        setSelectedCollectionName(defaultTarget);
-        setSearchParams({ targetCollection: defaultTarget, page: "1", type: "성함", text: "" }, { replace: true });
-      }
-    }
-  };
-
+  // ─── Survey 목록 로드 ────────────────────────────────────────────
   useEffect(() => {
+    const fetchSurveyList = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, "survey_list"), orderBy("created_at", "desc")));
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() })) as SurveyListData[];
+        setSurveyList(list);
+
+        if (list.length > 0 && !searchParams.get("targetCollection")) {
+          setSearchParams(
+            { targetCollection: list[0].name, page: "1", type: "성함", text: "" },
+            { replace: true }
+          );
+        }
+      } catch {
+        const snap = await getDocs(collection(db, "survey_list"));
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() })) as SurveyListData[];
+        setSurveyList(list);
+        if (list.length > 0 && !searchParams.get("targetCollection")) {
+          setSearchParams({ targetCollection: list[0].name, page: "1", type: "성함", text: "" }, { replace: true });
+        }
+      }
+    };
     fetchSurveyList();
   }, []);
 
-  const fetchTotalCount = async (targetCollection: string, type: string, text: string) => {
-    if (!targetCollection) return;
+  // ─── 총 개수 조회 ────────────────────────────────────────────────
+  const fetchTotalCount = useCallback(async (col: string, type: string, text: string) => {
+    if (!col) return;
     try {
-      const coll = collection(db, targetCollection);
-      let q = query(coll);
-      if (text.trim() !== "") {
-        q = query(coll, where(type, "==", text.trim()));
-      }
-      const snapshot = await getCountFromServer(q);
-      setTotal(snapshot.data().count);
-    } catch (error) {
-      console.error(error);
+      const coll = collection(db, col);
+      const q = text.trim()
+        ? query(coll, where(type, "==", text.trim()))
+        : query(coll);
+      const snap = await getCountFromServer(q);
+      setTotal(snap.data().count);
+    } catch (e) {
+      console.error(e);
     }
-  };
+  }, []);
 
+  // ─── 데이터 조회 ────────────────────────────────────────────────
   const fetchData = useCallback(async (
-    direction: 'first' | 'next' | 'prev' | 'stay', 
-    targetCollection: string, 
-    type: string, 
-    text: string
+    direction: "first" | "next" | "prev" | "stay",
+    col: string,
+    type: string,
+    text: string,
+    _firstId: string,
+    _lastId: string,
+    _currentPage: number
   ) => {
-    if (!targetCollection) return;
+    if (!col) return;
     setLoading(true);
     try {
-      const collRef = collection(db, targetCollection);
-      let queryConstraints: any[] = [];
-
-      if (text.trim() !== "") {
-        queryConstraints.push(where(type, "==", text.trim()));
-        queryConstraints.push(orderBy(type));
-      } else {
-        queryConstraints.push(orderBy("created_at", "desc"));
-      }
+      const collRef = collection(db, col);
+      const constraints: any[] = text.trim()
+        ? [where(type, "==", text.trim()), orderBy(type)]
+        : [orderBy("created_at", "desc")];
 
       let q;
-      if (direction === 'stay' && firstId) {
-        const cursorDoc = await getDoc(doc(db, targetCollection, firstId));
-        q = query(collRef, ...queryConstraints, startAt(cursorDoc), limit(PAGE_SIZE));
-      } 
-      else if (direction === 'next' && lastId) {
-        const cursorDoc = await getDoc(doc(db, targetCollection, lastId));
-        q = query(collRef, ...queryConstraints, startAfter(cursorDoc), limit(PAGE_SIZE));
-      } 
-      else if (direction === 'prev' && firstId) {
-        const cursorDoc = await getDoc(doc(db, targetCollection, firstId));
-        q = query(collRef, ...queryConstraints, endBefore(cursorDoc), limitToLast(PAGE_SIZE));
-      } 
-      else {
-        q = query(collRef, ...queryConstraints, limit(PAGE_SIZE));
+      if (direction === "stay" && _firstId) {
+        const cursor = await getDoc(doc(db, col, _firstId));
+        q = query(collRef, ...constraints, startAt(cursor), limit(PAGE_SIZE));
+      } else if (direction === "next" && _lastId) {
+        const cursor = await getDoc(doc(db, col, _lastId));
+        q = query(collRef, ...constraints, startAfter(cursor), limit(PAGE_SIZE));
+      } else if (direction === "prev" && _firstId) {
+        const cursor = await getDoc(doc(db, col, _firstId));
+        q = query(collRef, ...constraints, endBefore(cursor), limitToLast(PAGE_SIZE));
+      } else {
+        q = query(collRef, ...constraints, limit(PAGE_SIZE));
       }
 
-      const querySnapshot = await getDocs(q);
-      const rows = querySnapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...(doc.data() as object) 
-      })) as SurveyData[];
+      const snap = await getDocs(q);
+      const rows = snap.docs.map(d => ({ id: d.id, ...(d.data() as object) })) as SurveyData[];
 
       if (rows.length > 0) {
         setData(rows);
 
-        const excludedKeys = ["id", "created_at", "target"];
         const keysSet = new Set<string>();
-        rows.forEach(row => {
-          Object.keys(row).forEach(key => {
-            if (!excludedKeys.includes(key)) {
-              keysSet.add(key);
-            }
-          });
-        });
-        
-        const sortedKeys = Array.from(keysSet).sort((a, b) => {
-          const priority = ["성함", "연락처", "약국명"];
-          const idxA = priority.indexOf(a);
-          const idxB = priority.indexOf(b);
-          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-          if (idxA !== -1) return -1;
-          if (idxB !== -1) return 1;
-          return a.localeCompare(b);
-        });
-        setDynamicKeys(sortedKeys);
+        rows.forEach(r => Object.keys(r).forEach(k => { if (!EXCLUDED_KEYS.includes(k)) keysSet.add(k); }));
+        setDynamicKeys(sortDynamicKeys(keysSet));
 
-        const newFirstId = querySnapshot.docs[0].id;
-        const newLastId = querySnapshot.docs[querySnapshot.docs.length - 1].id;
-        
-        let nextPage = currentPage;
-        if (direction === 'first') nextPage = 1;
-        else if (direction === 'next') nextPage = currentPage + 1;
-        else if (direction === 'prev') nextPage = currentPage - 1;
+        const newFirstId = snap.docs[0].id;
+        const newLastId = snap.docs[snap.docs.length - 1].id;
+        const nextPage = direction === "next" ? _currentPage + 1
+          : direction === "prev" ? _currentPage - 1
+          : direction === "first" ? 1
+          : _currentPage;
 
         setSearchParams({
-          targetCollection: targetCollection,
+          targetCollection: col,
           page: String(nextPage),
           firstId: newFirstId,
           lastId: newLastId,
-          type: type,
-          text: text
+          type,
+          text,
         });
       } else {
         setData([]);
         setDynamicKeys([]);
       }
-    } catch (error: any) {
-      console.error("Firebase Error:", error);
+    } catch (e: any) {
+      console.error("Firebase Error:", e);
       msg.error("데이터 로드 실패");
     } finally {
       setLoading(false);
     }
-  }, [firstId, lastId, currentPage, setSearchParams, msg]);
+  }, [setSearchParams, msg]);
 
+  // ─── URL 변경 시 재조회 ──────────────────────────────────────────
   useEffect(() => {
-    const qCollection = searchParams.get("targetCollection") || "";
-    const qText = searchParams.get("text") || "";
-    const qType = searchParams.get("type") || "성함"; 
-    
-    setSearchText(qText);
-    setSearchType(qType);
+    const col = searchParams.get("targetCollection") || "";
+    const type = searchParams.get("type") || "성함";
+    const text = searchParams.get("text") || "";
+    const fId = searchParams.get("firstId") || "";
+    const lId = searchParams.get("lastId") || "";
+    const page = Number(searchParams.get("page")) || 1;
 
-    if (qCollection) {
-      setSelectedCollectionName(qCollection);
-      fetchTotalCount(qCollection, qType, qText);
+    setLocalSearchType(type);
+    setLocalSearchText(text);
+    setSelectedRowKeys([]);
 
-      if (currentPage > 1 && firstId) {
-        fetchData('stay', qCollection, qType, qText);
-      } else {
-        fetchData('first', qCollection, qType, qText);
-      }
-    } else {
-      setLoading(false);
-    }
-  }, [searchParams.get("targetCollection"), searchParams.get("text"), searchParams.get("type")]); 
+    if (!col) { setLoading(false); return; }
 
-  const handleSurveyChange = (collectionName: string) => {
-    setSelectedCollectionName(collectionName);
-    setSearchParams({
-      targetCollection: collectionName,
-      page: "1",
-      type: "성함", 
-      text: ""
-    });
+    fetchTotalCount(col, type, text);
+
+    const direction = (page > 1 && fId) ? "stay" : "first";
+    fetchData(direction, col, type, text, fId, lId, page);
+  }, [
+    searchParams.get("targetCollection"),
+    searchParams.get("text"),
+    searchParams.get("type"),
+    searchParams.get("page"),
+  ]);
+
+  // ─── 핸들러 ─────────────────────────────────────────────────────
+  const handleSurveyChange = (name: string) => {
+    setSearchParams({ targetCollection: name, page: "1", type: "성함", text: "" });
   };
 
   const handleSearch = () => {
-    setSearchParams({
-      targetCollection: selectedCollectionName,
-      page: "1",
-      type: searchType,
-      text: searchText
-    });
+    setSearchParams({ targetCollection: selectedCollectionName, page: "1", type: localSearchType, text: localSearchText });
   };
 
   const handleRefresh = () => {
-    setSearchText("");
-    setSearchType("성함"); 
-    if (surveyList.length > 0) {
-      setSelectedCollectionName(surveyList[0].name);
-      setSearchParams({ targetCollection: surveyList[0].name });
-    } else {
-      setSearchParams({});
+    setLocalSearchText("");
+    setLocalSearchType("성함");
+    const target = surveyList[0]?.name || "";
+    setSearchParams(target ? { targetCollection: target } : {});
+  };
+
+  // 삭제 후 커서 ID 없이 1페이지로 복귀 — 핵심 수정 포인트
+  const resetToFirstPage = () => {
+    const params: Record<string, string> = {
+      targetCollection: selectedCollectionName,
+      page: "1",
+      type: searchType,
+      text: searchText,
+    };
+    // firstId, lastId를 아예 포함하지 않음 → 'first' direction으로 강제
+    setSearchParams(params, { replace: true });
+  };
+
+  const handleDeleteSingle = async (id: string) => {
+    if (!selectedCollectionName) return;
+    try {
+      setLoading(true);
+      await deleteDoc(doc(db, selectedCollectionName, id));
+      
+      alert("성공적으로 삭제되었습니다.");
+      
+      // 가장 확실하고 간단하게 새로고침 처리
+      window.location.reload();
+      
+    } catch (error) {
+      console.error("삭제 실패:", error);
+      msg.error("삭제 처리에 실패했습니다.");
+      setLoading(false); 
     }
   };
 
+  const handleDeleteBulk = async () => {
+    if (!selectedCollectionName || selectedRowKeys.length === 0) return;
+    try {
+      setLoading(true);
+      await Promise.all(
+        selectedRowKeys.map((id) => deleteDoc(doc(db, selectedCollectionName, String(id))))
+      );
+      
+      alert(`${selectedRowKeys.length}건의 데이터가 삭제되었습니다.`);
+      
+      // 일괄 삭제 후에도 똑같이 새로고침
+      window.location.reload();
+  
+    } catch (error) {
+      console.error("일괄 삭제 실패:", error);
+      msg.error("일괄 삭제 처리에 실패했습니다.");
+      setLoading(false); 
+    }
+  };
+
+  // ─── CSV 다운로드 ────────────────────────────────────────────────
   const executeDownload = async () => {
     if (!selectedCollectionName) return;
     setLoading(true);
     try {
-      const collRef = collection(db, selectedCollectionName);
-      let queryConstraints: any[] = [];
-      const qText = searchParams.get("text") || "";
-      const qType = searchParams.get("type") || "성함"; 
+      const constraints: any[] = searchText.trim()
+        ? [where(searchType, "==", searchText.trim()), orderBy(searchType)]
+        : [orderBy("created_at", "desc")];
+      const snap = await getDocs(query(collection(db, selectedCollectionName), ...constraints));
+      const allData = snap.docs.map(d => ({ id: d.id, ...(d.data() as object) })) as SurveyData[];
 
-      if (qText.trim() !== "") {
-        queryConstraints.push(where(qType, "==", qText.trim()));
-        queryConstraints.push(orderBy(qType));
-      } else {
-        queryConstraints.push(orderBy("created_at", "desc"));
-      }
-      const q = query(collRef, ...queryConstraints);
-      const querySnapshot = await getDocs(q);
-      const allData = querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) })) as SurveyData[];
-      
       const keysSet = new Set<string>();
-      allData.forEach(row => {
-        Object.keys(row).forEach(key => {
-          if (!["id", "created_at", "target"].includes(key)) keysSet.add(key);
+      allData.forEach(r => Object.keys(r).forEach(k => { if (!EXCLUDED_KEYS.includes(k)) keysSet.add(k); }));
+      const keys = sortDynamicKeys(keysSet);
+
+      const headers = ["No", "신청시간", ...keys];
+      const rows = allData.map((item, i) => {
+        const cells = [String(allData.length - i), item.created_at?.toDate()?.toLocaleString() || "미정"];
+        keys.forEach(k => {
+          let val = item[k] !== undefined ? String(item[k]) : "";
+          if (k === "연락처" || (val.startsWith("0") && !isNaN(Number(val.replace(/-/g, ""))))) val = `="${val}"`;
+          cells.push(val.includes(",") || val.includes("\n") || val.includes('"')
+            ? `"${val.replace(/"/g, '""')}"` : val);
         });
-      });
-      
-      const sortedKeys = Array.from(keysSet).sort((a, b) => {
-        const priority = ["성함", "연락처", "약국명"];
-        const idxA = priority.indexOf(a);
-        const idxB = priority.indexOf(b);
-        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-        if (idxA !== -1) return -1;
-        if (idxB !== -1) return 1;
-        return a.localeCompare(b);
+        return cells;
       });
 
-      const headers = ["No", "신청시간", ...sortedKeys];
-
-      const rows = allData.map((item, index) => {
-        const rowCells = [
-          String(allData.length - index),
-          item.created_at?.toDate()?.toLocaleString() || "미정"
-        ];
-        
-        sortedKeys.forEach(key => {
-          let val = item[key] !== undefined ? String(item[key]) : "";
-          
-          // 🔥 [수정 1] 0 잘림 현상 방지: 0으로 시작하는 숫자 배열 혹은 '연락처' 필드는 엑셀 수식 형태 `="값"`으로 변환하여 안전하게 문자로 고정합니다.
-          if (key === "연락처" || (val.startsWith("0") && !isNaN(Number(val.replace(/-/g, ""))))) {
-            val = `="${val}"`; 
-          }
-
-          if (val.includes(",") || val.includes("\n") || val.includes('"')) {
-            // 수식 내부 큰따옴표 이스케이프 구조 처리
-            rowCells.push(`"${val.replace(/"/g, '""')}"`);
-          } else {
-            rowCells.push(val);
-          }
-        });
-        return rowCells;
-      });
-
-      const csvContent = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `상담신청_내역_${new Date().toISOString().slice(0, 10)}.csv`;
-      link.click();
+      const csv = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+      Object.assign(document.createElement("a"), { href: url, download: `상담신청_내역_${new Date().toISOString().slice(0, 10)}.csv` }).click();
       URL.revokeObjectURL(url);
       msg.success("다운로드 완료");
-    } catch (err) {
-      console.error(err);
+    } catch {
       msg.error("다운로드 실패");
     } finally {
       setLoading(false);
     }
   };
 
+  // ─── 테이블 컬럼 ─────────────────────────────────────────────────
   const columns: ColumnsType<SurveyData> = [
-    { 
-      title: "No.", 
-      key: "no", 
-      width: 80, 
-      align: "center", 
-      render: (_, __, index) => total - ((currentPage - 1) * PAGE_SIZE) - index 
-    },
-    { 
-      title: "신청시간", 
-      dataIndex: "created_at", 
-      key: "created_at", 
-      width: 220, // 🔥 [수정 2] 너비를 180에서 220으로 확장
-      render: (val) => (
-        // 🔥 줄바꿈 방지 스타일 적용
-        <span style={{ whiteSpace: "nowrap" }}>
-          {val?.toDate()?.toLocaleString() || "미정"}
-        </span>
-      )
-    },
+    { title: "No.", key: "no", width: 70, align: "center",
+      render: (_, __, i) => total - ((currentPage - 1) * PAGE_SIZE) - i },
+    { title: "신청시간", dataIndex: "created_at", key: "created_at", width: 200,
+      render: (val) => <span style={{ whiteSpace: "nowrap" }}>{val?.toDate()?.toLocaleString() || "미정"}</span> },
     ...dynamicKeys.map(key => ({
-      title: key,
-      dataIndex: key,
-      key: key,
-      render: (text: any) => {
-        if (key === "성함") return <Text strong>{text || "-"}</Text>;
-        return text || "-";
-      }
-    }))
+      title: key, dataIndex: key, key,
+      render: (text: any) => key === "성함" ? <Text strong>{text || "-"}</Text> : (text || "-"),
+    })),
+    { title: "관리", key: "action", width: 80, align: "center", fixed: "right" as const,
+      render: (_, record) => (
+        <Popconfirm
+          title="삭제하시겠습니까?"
+          description="삭제된 데이터는 복구할 수 없습니다."
+          onConfirm={() => handleDeleteSingle(record.id)}
+          okText="삭제" cancelText="취소" okButtonProps={{ danger: true }}
+        >
+          <Button type="primary" danger icon={<Trash2 size={14} />} size="small">삭제</Button>
+        </Popconfirm>
+      ),
+    },
   ];
+
+  const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
   return (
     <div style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto" }}>
       <Card variant="borderless" className="shadow-sm">
         <Space orientation="vertical" size="large" style={{ width: "100%" }}>
+
+          {/* 헤더 */}
           <Space style={{ justifyContent: "space-between", width: "100%" }}>
             <div>
               <Title level={3} style={{ margin: 0 }}>상담 신청 관리</Title>
               <Text type="secondary">Total <Text strong>{total}</Text> records</Text>
             </div>
-            <Space>
-              <Button icon={<RefreshCw size={14} className={loading ? "animate-spin" : ""} />} onClick={handleRefresh}>
-                새로고침
-              </Button>
-              <Button 
-                type="primary" 
-                icon={<Download size={14} />} 
-                style={{ backgroundColor: '#27ae60', borderColor: '#27ae60' }}
+            <Space wrap>
+              {selectedRowKeys.length > 0 && (
+                <Button danger type="primary" icon={<Trash2 size={14} />}
+                  onClick={() => modal.confirm({
+                    title: "선택 항목 일괄 삭제",
+                    content: `선택한 ${selectedRowKeys.length}건을 삭제하시겠습니까? 되돌릴 수 없습니다.`,
+                    okText: "일괄 삭제", okButtonProps: { danger: true }, cancelText: "취소",
+                    onOk: handleDeleteBulk,
+                  })}
+                >
+                  선택 삭제 ({selectedRowKeys.length})
+                </Button>
+              )}
+              <Button icon={<RefreshCw size={14} className={loading ? "animate-spin" : ""} />} onClick={handleRefresh}>새로고침</Button>
+              <Button type="primary" icon={<Download size={14} />}
+                style={{ backgroundColor: "#27ae60", borderColor: "#27ae60" }}
                 onClick={() => modal.confirm({
-                  title: '데이터 다운로드',
-                  content: '내역을 CSV로 받으시겠습니까?',
-                  onOk: executeDownload
+                  title: "데이터 다운로드", content: "현재 조건으로 CSV를 다운로드하시겠습니까?",
+                  onOk: executeDownload,
                 })}
               >
                 엑셀 다운로드
@@ -400,62 +377,57 @@ function ExcelPageContent() {
             </Space>
           </Space>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {/* 설문지 선택 */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <Text type="secondary" strong>설문지 선택</Text>
-            <Select 
-              value={selectedCollectionName || undefined} 
-              style={{ width: '100%', maxWidth: '300px' }} 
+            <Select
+              value={selectedCollectionName || undefined}
+              style={{ width: "100%", maxWidth: 300 }}
               onChange={handleSurveyChange}
               placeholder="설문지를 선택해주세요"
             >
-              {surveyList.map((survey) => (
-                <Option key={survey.id} value={survey.name}>
-                  {survey.name || survey.title}
-                </Option>
-              ))}
+              {surveyList.map(s => <Option key={s.id} value={s.name}>{s.name || s.title}</Option>)}
             </Select>
           </div>
 
-          <Space.Compact style={{ width: '100%', maxWidth: '600px' }}>
-            <Select value={searchType} style={{ width: '120px' }} onChange={(val) => setSearchType(val)}>
-              <Option value="성함">성함</Option>
-              <Option value="연락처">연락처</Option>
-              <Option value="약국명">약국명</Option>
+          {/* 검색 */}
+          <Space.Compact style={{ width: "100%", maxWidth: 600 }}>
+            <Select value={localSearchType} style={{ width: 120 }} onChange={setLocalSearchType}>
+              {PRIORITY_KEYS.map(k => <Option key={k} value={k}>{k}</Option>)}
             </Select>
-            <Input 
-              placeholder="완전 일치 검색" 
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
+            <Input
+              placeholder="완전 일치 검색"
+              value={localSearchText}
+              onChange={e => setLocalSearchText(e.target.value)}
               onPressEnter={handleSearch}
             />
             <Button type="primary" icon={<Search size={16} />} onClick={handleSearch}>검색</Button>
           </Space.Compact>
 
-          <Table 
-            dataSource={data} 
-            columns={columns} 
-            rowKey="id" 
-            loading={loading} 
-            pagination={false} 
-            scroll={{ x: 'max-content' }}
+          {/* 테이블 */}
+          <Table
+            rowSelection={{ selectedRowKeys, onChange: keys => setSelectedRowKeys(keys) }}
+            dataSource={data}
+            columns={columns}
+            rowKey="id"
+            loading={loading}
+            pagination={false}
+            scroll={{ x: "max-content" }}
           />
 
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', marginTop: '20px' }}>
-            <Button 
-              icon={<ChevronLeft size={16} />} 
-              disabled={currentPage === 1 || loading} 
-              onClick={() => fetchData('prev', selectedCollectionName, searchType, searchText)}
-            >
+          {/* 페이지네이션 */}
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 20 }}>
+            <Button icon={<ChevronLeft size={16} />} disabled={currentPage === 1 || loading}
+              onClick={() => fetchData("prev", selectedCollectionName, searchType, searchText, firstId, lastId, currentPage)}>
               이전
             </Button>
-            <Text strong>{currentPage} / {Math.ceil(total / PAGE_SIZE) || 1}</Text>
-            <Button 
-              disabled={(currentPage * PAGE_SIZE) >= total || loading} 
-              onClick={() => fetchData('next', selectedCollectionName, searchType, searchText)}
-            >
-              다음 <ChevronRight size={16} style={{ marginLeft: '4px' }} />
+            <Text strong>{currentPage} / {totalPages}</Text>
+            <Button disabled={currentPage >= totalPages || loading}
+              onClick={() => fetchData("next", selectedCollectionName, searchType, searchText, firstId, lastId, currentPage)}>
+              다음 <ChevronRight size={16} style={{ marginLeft: 4 }} />
             </Button>
           </div>
+
         </Space>
       </Card>
     </div>
@@ -464,7 +436,7 @@ function ExcelPageContent() {
 
 export default function AdminExcelPage() {
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: '#27ae60' } }}>
+    <ConfigProvider theme={{ token: { colorPrimary: "#27ae60" } }}>
       <App><ExcelPageContent /></App>
     </ConfigProvider>
   );
