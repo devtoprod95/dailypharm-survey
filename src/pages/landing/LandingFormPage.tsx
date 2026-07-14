@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../../lib/firebase"; 
-import { Form, Input, Button, Card, Checkbox, Space, Typography, Divider, Row, Col, Upload, Image, Select } from "antd"; 
-import { ArrowLeft, Eye, Upload as UploadIcon, Key as KeyIcon, AlertCircle, Plus, Trash2 } from "lucide-react"; 
+import { Form, Input, Button, Card, Checkbox, Space, Typography, Divider, Row, Col, Upload, Image, Select, Radio } from "antd"; 
+import { ArrowLeft, Eye, Upload as UploadIcon, Key as KeyIcon, AlertCircle, Plus, Trash2, GripVertical } from "lucide-react"; 
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -10,6 +10,7 @@ const { Option } = Select;
 
 const DEFAULT_FORM_VALUES = {
   name: "",
+  page_type: "normal",
   show_title: true,
   title: "팜스타트 대행 서비스 신청",
   subtitle: "현재 팜스타트 패키지 신청 시 39만원 이상 절감 혜택 제공 중!",
@@ -22,6 +23,7 @@ const DEFAULT_FORM_VALUES = {
     { key: "phone", label: "연락처", type: "number", show: true, required: true },
     { key: "pharmacy", label: "약국명", type: "text", show: true, required: true },
   ],
+  questions: [],
   terms_privacy: { 
     title: "개인정보 수집 및 이용 동의 (필수)", 
     show: true, 
@@ -53,6 +55,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
   const [previewUrl, setPreviewUrl] = useState<string | null>(null); 
   const [rawFile, setRawFile] = useState<File | null>(null); 
   const [currentName, setCurrentName] = useState("");
+  const pageType = Form.useWatch("page_type", form) || "normal";
 
   // 1. 데이터 로드 파트 (수정: dbKey 대신 컴포넌트 표준인 'key' 명칭 사용 및 필드 구조 매핑)
   useEffect(() => {
@@ -85,9 +88,34 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
 
             const formattedFields = [...fixedFields, ...customFields];
 
+            const loadedQuestions = (data.questions || []).map((q: any) => {
+              let opts = q.options || [];
+              if (Array.isArray(opts)) {
+                opts = opts.map((opt: any, idx: number) => {
+                  if (typeof opt === 'object' && opt !== null) {
+                    return {
+                      text: opt.text || '',
+                      order: opt.order !== undefined ? Number(opt.order) : idx + 1
+                    };
+                  } else {
+                    return {
+                      text: String(opt),
+                      order: idx + 1
+                    };
+                  }
+                }).sort((a: any, b: any) => a.order - b.order);
+              }
+              return {
+                ...q,
+                options: opts
+              };
+            });
+
             form.setFieldsValue({
               ...DEFAULT_FORM_VALUES,
               ...data, 
+              page_type: data.page_type || "normal",
+              questions: loadedQuestions,
               fields: formattedFields,
               terms_privacy: { ...DEFAULT_FORM_VALUES.terms_privacy, ...data.terms_privacy },
               terms_third_party: { ...DEFAULT_FORM_VALUES.terms_third_party, ...data.terms_third_party },
@@ -163,6 +191,40 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
       }
       return;
     }
+
+    // 3. 저장하기 눌렀을 때 선택형 경우 검사 로직
+    if (values.page_type === "selective") {
+      const qs = values.questions || [];
+      if (qs.length === 0) {
+        alert("선택형 페이지의 경우 최소 1개 이상의 질문이 등록되어야 합니다.");
+        return;
+      }
+      for (let i = 0; i < qs.length; i++) {
+        const q = qs[i];
+        if (!q.title || !q.title.trim()) {
+          alert(`[질문 ${i + 1}] 질문 제목을 입력해 주세요.`);
+          return;
+        }
+        if (q.type === "radio" || q.type === "checkbox") {
+          const opts = q.options || [];
+          if (opts.length === 0) {
+            alert(`[질문 ${i + 1}: ${q.title}] 객관식 질문에는 최소 1개 이상의 답변 보기가 있어야 합니다.`);
+            return;
+          }
+          for (let j = 0; j < opts.length; j++) {
+            const opt = opts[j];
+            if (!opt || !opt.text || !opt.text.trim()) {
+              alert(`[질문 ${i + 1}]의 [보기 ${j + 1}] 내용을 입력해 주세요.`);
+              return;
+            }
+            if (opt.order === undefined || opt.order === null || String(opt.order).trim() === "") {
+              alert(`[질문 ${i + 1}]의 [보기 ${j + 1}] 순서 번호를 입력해 주세요.`);
+              return;
+            }
+          }
+        }
+      }
+    }
   
     const confirmMessage = isEditMode 
       ? "입력하신 내용으로 수정하시겠습니까?" 
@@ -236,6 +298,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
         name: fieldNameValue, 
         top_image_url: finalImageUrl,
         fields: dbFieldsObject, 
+        questions: values.page_type === "selective" ? (values.questions || []) : [],
         created_at: isEditMode ? (form.getFieldValue("created_at") || serverTimestamp()) : serverTimestamp(),
         updated_at: serverTimestamp(),
       };
@@ -323,6 +386,28 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
               placeholder="예: survey_pharm_start" 
               disabled={!!id} 
             />
+          </Form.Item>
+
+          {/* 페이지 타입 선택 */}
+          <Form.Item 
+            name="page_type" 
+            label="페이지 타입" 
+            rules={[{ required: true }]}
+          >
+            <Radio.Group onChange={(e) => {
+              const val = e.target.value;
+              if (val === "selective") {
+                const currentQs = form.getFieldValue("questions");
+                if (!currentQs || currentQs.length === 0) {
+                  form.setFieldsValue({
+                    questions: [{ title: "", type: "radio", options: [{ text: "", order: 1 }] }]
+                  });
+                }
+              }
+            }}>
+              <Radio value="normal">일반형</Radio>
+              <Radio value="selective">선택형</Radio>
+            </Radio.Group>
           </Form.Item>
 
           {/* 1. 상단 비주얼 영역 */}
@@ -514,8 +599,214 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
             }}
           </Form.List>
 
+          {/* 3. 질문 및 답변 설정 (선택형일 때만 노출) */}
+          {pageType === "selective" && (
+            <>
+              <SectionHeader num="3" title="질문 및 답변 설정" />
+              <Form.List name="questions">
+                {(qFields, { add: addQ, remove: removeQ, move: moveQ }) => (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: 20 }}>
+                    {qFields.map((qField, qIndex) => (
+                      <div
+                        key={qField.key}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("drag-type", "question");
+                          e.dataTransfer.setData("drag-index", qIndex.toString());
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const type = e.dataTransfer.getData("drag-type");
+                          if (type === "question") {
+                            const fromIndex = parseInt(e.dataTransfer.getData("drag-index"), 10);
+                            const toIndex = qIndex;
+                            if (fromIndex !== toIndex) {
+                              moveQ(fromIndex, toIndex);
+                            }
+                          }
+                        }}
+                      >
+                        <Card
+                          size="small"
+                          title={
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <GripVertical size={16} style={{ color: '#bfbfbf', cursor: 'grab' }} />
+                              <span>질문 {qIndex + 1} (드래그하여 순서 변경 가능)</span>
+                            </div>
+                          }
+                          style={{ backgroundColor: '#fafafa', border: '1px solid #d9d9d9' }}
+                          actions={[
+                            <Button
+                              type="text"
+                              danger
+                              icon={<Trash2 size={14} />}
+                              onClick={() => removeQ(qField.name)}
+                              style={{ display: 'flex', alignItems: 'center', margin: '0 auto', gap: '4px' }}
+                            >
+                              질문 삭제
+                            </Button>
+                          ]}
+                        >
+                          <Form.Item
+                            name={[qField.name, 'title']}
+                            label="질문 제목"
+                            rules={[{ required: true, message: '질문 제목을 입력해주세요.' }]}
+                            style={{ marginBottom: 12 }}
+                          >
+                            <Input placeholder="예: 약국 운영 형태를 선택해 주세요." />
+                          </Form.Item>
+
+                          <Form.Item
+                            name={[qField.name, 'type']}
+                            label="질문 유형"
+                            initialValue="radio"
+                            rules={[{ required: true }]}
+                            style={{ marginBottom: 12 }}
+                          >
+                            <Select>
+                              <Option value="radio">객관식 (단일 선택)</Option>
+                              <Option value="checkbox">객관식 (다중 선택)</Option>
+                              <Option value="text">주관식 (텍스트 입력)</Option>
+                            </Select>
+                          </Form.Item>
+
+                          {/* 질문 유형이 radio나 checkbox일 때만 보기(옵션) 입력 UI 노출 */}
+                          <Form.Item
+                            noStyle
+                            shouldUpdate={(prevValues, currentValues) => {
+                              const prevType = prevValues?.questions?.[qField.name]?.type;
+                              const currentType = currentValues?.questions?.[qField.name]?.type;
+                              return prevType !== currentType;
+                            }}
+                          >
+                            {({ getFieldValue }) => {
+                              const type = getFieldValue(['questions', qField.name, 'type']) || 'radio';
+                              if (type === 'text') return null;
+
+                              return (
+                                <div style={{ marginTop: '12px', padding: '16px', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #f0f0f0' }}>
+                                  <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>답변 보기 설정 (드래그하여 순서 변경 가능)</div>
+                                  <Form.List name={[qField.name, 'options']}>
+                                    {(optFields, { add: addOpt, remove: removeOpt, move: moveOpt }) => (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {optFields.map((optField, optIndex) => (
+                                          <Row
+                                            gutter={8}
+                                            key={optField.key}
+                                            align="middle"
+                                            draggable
+                                            onDragStart={(e) => {
+                                              e.stopPropagation();
+                                              e.dataTransfer.setData("drag-type", "option");
+                                              e.dataTransfer.setData("drag-index", optIndex.toString());
+                                            }}
+                                            onDragOver={(e) => {
+                                              e.preventDefault();
+                                            }}
+                                            onDrop={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              const type = e.dataTransfer.getData("drag-type");
+                                              if (type === "option") {
+                                                const fromIndex = parseInt(e.dataTransfer.getData("drag-index"), 10);
+                                                const toIndex = optIndex;
+                                                if (fromIndex !== toIndex) {
+                                                  moveOpt(fromIndex, toIndex);
+                                                  setTimeout(() => {
+                                                    const updatedQs = form.getFieldValue("questions") || [];
+                                                    const updatedOpts = updatedQs[qIndex]?.options || [];
+                                                    updatedOpts.forEach((opt: any, idx: number) => {
+                                                      if (opt) opt.order = idx + 1;
+                                                    });
+                                                    form.setFieldsValue({ questions: updatedQs });
+                                                  }, 0);
+                                                }
+                                              }
+                                            }}
+                                            style={{ padding: '6px 0', borderBottom: '1px dashed #f0f0f0' }}
+                                          >
+                                            {/* 드래그 핸들 */}
+                                            <Col span={2} style={{ display: 'flex', justifyContent: 'center', cursor: 'grab' }}>
+                                              <GripVertical size={16} style={{ color: '#bfbfbf' }} />
+                                            </Col>
+                                            <Col span={4}>
+                                              <Form.Item
+                                                name={[optField.name, 'order']}
+                                                rules={[{ required: true, message: '순서는 필수입니다.' }]}
+                                                style={{ margin: 0 }}
+                                              >
+                                                <Input type="number" placeholder="순서" style={{ textAlign: 'center' }} disabled />
+                                              </Form.Item>
+                                            </Col>
+                                            <Col span={14}>
+                                              <Form.Item
+                                                name={[optField.name, 'text']}
+                                                rules={[{ required: true, message: '보기 내용을 입력해주세요.' }]}
+                                                style={{ margin: 0 }}
+                                              >
+                                                <Input placeholder={`보기 ${optIndex + 1} 내용`} />
+                                              </Form.Item>
+                                            </Col>
+                                            <Col span={4}>
+                                              <Button
+                                                danger
+                                                type="text"
+                                                icon={<Trash2 size={14} />}
+                                                onClick={() => {
+                                                  removeOpt(optField.name);
+                                                  setTimeout(() => {
+                                                    const updatedQs = form.getFieldValue("questions") || [];
+                                                    const updatedOpts = updatedQs[qIndex]?.options || [];
+                                                    updatedOpts.forEach((opt: any, idx: number) => {
+                                                      if (opt) opt.order = idx + 1;
+                                                    });
+                                                    form.setFieldsValue({ questions: updatedQs });
+                                                  }, 0);
+                                                }}
+                                                disabled={optFields.length <= 1} // 최소 1개는 유지
+                                              />
+                                            </Col>
+                                          </Row>
+                                        ))}
+                                        <Button
+                                          type="dashed"
+                                          onClick={() => addOpt({ text: '', order: optFields.length + 1 })}
+                                          icon={<Plus size={12} />}
+                                          size="small"
+                                          style={{ marginTop: '4px' }}
+                                        >
+                                          보기 추가
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </Form.List>
+                                </div>
+                              );
+                            }}
+                          </Form.Item>
+                        </Card>
+                      </div>
+                    ))}
+
+                    <Button
+                      type="dashed"
+                      onClick={() => addQ({ title: '', type: 'radio', options: [{ text: '', order: 1 }] })}
+                      icon={<Plus size={14} />}
+                      style={{ height: '45px' }}
+                    >
+                      새로운 질문 추가하기
+                    </Button>
+                  </div>
+                )}
+              </Form.List>
+            </>
+          )}
+
           {/* 3. 개인정보 동의 영역 */}
-          <SectionHeader num="3" title="개인정보 동의 영역" />
+          <SectionHeader num={pageType === "selective" ? "4" : "3"} title="개인정보 동의 영역" />
           {["terms_privacy", "terms_third_party"].map((tKey) => (
             <Card size="small" style={{ marginBottom: 16, backgroundColor: '#fbfbfb' }} key={tKey}>
               <Form.Item name={[tKey, "show"]} valuePropName="checked" style={{ marginBottom: 8 }}>
@@ -529,7 +820,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
           ))}
 
           {/* 4. 하단 스타일 및 문구 */}
-          <SectionHeader num="4" title="하단 스타일 및 문구" />
+          <SectionHeader num={pageType === "selective" ? "5" : "4"} title="하단 스타일 및 문구" />
           
           <Card size="small" style={{ border: '2px solid #27ae60', backgroundColor: '#f6ffed', marginBottom: 20 }}>
             <Form.Item 

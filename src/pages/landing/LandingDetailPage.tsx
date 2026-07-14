@@ -30,6 +30,7 @@ export default function LandingDetailPage() {
 
   // 🔥 동적 필드 입력을 위해 객체 형태로 상태 관리
   const [form, setForm] = useState<Record<string, string>>({});
+  const [questionAnswers, setQuestionAnswers] = useState<Record<number, any>>({});
   const [agree1, setAgree1] = useState(false);
   const [agree2, setAgree2] = useState(false);
   const [errorField, setErrorField] = useState<string | null>(null);
@@ -132,6 +133,20 @@ export default function LandingDetailPage() {
       }
     }
 
+    // 🔥 선택형 질문 유효성 검사
+    if (landingData.page_type === "selective" && Array.isArray(landingData.questions)) {
+      for (let i = 0; i < landingData.questions.length; i++) {
+        const q = landingData.questions[i];
+        const ans = questionAnswers[i];
+        const isEmpty = !ans || (Array.isArray(ans) && ans.length === 0) || (typeof ans === "string" && ans.trim() === "");
+        if (isEmpty) {
+          alert(`[Q${i + 1}: ${q.title}] 질문에 답변해주세요.`);
+          document.getElementById(`question-container-${i}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        }
+      }
+    }
+
     // 약관동의 체크
     if (landingData.terms_privacy?.show && !agree1) {
       alert(`${landingData.terms_privacy.title || "개인정보 수집 및 이용 동의"}에 체크해 주세요.`);
@@ -163,6 +178,19 @@ export default function LandingDetailPage() {
           }
         });
 
+        // 🔥 선택형 질문 답변 추가
+        if (landingData.page_type === "selective" && Array.isArray(landingData.questions)) {
+          landingData.questions.forEach((q: any, qIdx: number) => {
+            const ans = questionAnswers[qIdx];
+            const keyName = q.title ? q.title.trim() : `질문 ${qIdx + 1}`;
+            if (Array.isArray(ans)) {
+              submissionAnswers[keyName] = ans.join(", ");
+            } else {
+              submissionAnswers[keyName] = (ans || "").trim();
+            }
+          });
+        }
+
         // 🔥 [변경] 기존의 ...form 대신 라벨명으로 정제된 ...submissionAnswers를 전송합니다.
         await addDoc(collection(db, name), {
           target: landingData.name || name,
@@ -180,6 +208,7 @@ export default function LandingDetailPage() {
       const clearedForm: Record<string, string> = {};
       Object.keys(form).forEach((k) => (clearedForm[k] = ""));
       setForm(clearedForm);
+      setQuestionAnswers({});
       setAgree1(false);
       setAgree2(false);
       
@@ -279,6 +308,101 @@ export default function LandingDetailPage() {
                 );
               })}
           </div>
+
+          {/* 질문 및 답변 영역 (선택형일 때만 노출) */}
+          {landingData.page_type === "selective" && Array.isArray(landingData.questions) && landingData.questions.length > 0 && (
+            <div className="space-y-6 mb-8 w-full border-t border-gray-100 pt-6">
+              <h3 className="text-[17px] font-black text-gray-900 mb-4">질문 항목</h3>
+              {landingData.questions.map((q: any, qIdx: number) => {
+                // 🔥 옵션 형식을 지원하기 위한 변환 및 정렬 로직 (객체 형태 / 문자열 형태 호환)
+                const sortedOptions = Array.isArray(q.options)
+                  ? [...q.options]
+                      .map((opt: any) => {
+                        if (typeof opt === 'object' && opt !== null) {
+                          return {
+                            text: opt.text || '',
+                            order: opt.order !== undefined ? Number(opt.order) : 9999
+                          };
+                        }
+                        return { text: String(opt), order: 9999 };
+                      })
+                      .sort((a, b) => a.order - b.order)
+                      .map(opt => opt.text)
+                  : [];
+
+                return (
+                  <div key={qIdx} id={`question-container-${qIdx}`} className="flex flex-col gap-3 w-full bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                    <label className="text-[15px] font-bold text-gray-800">
+                      Q{qIdx + 1}. {q.title} <span className="text-red-500">*</span>
+                    </label>
+
+                    {/* Radio type questions */}
+                    {q.type === "radio" && sortedOptions.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        {sortedOptions.map((opt: string, optIdx: number) => {
+                          const isChecked = questionAnswers[qIdx] === opt;
+                          return (
+                            <label
+                              key={optIdx}
+                              className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${isChecked ? "bg-teal-50 border-teal-500" : "bg-white border-gray-200 hover:border-gray-300"}`}
+                              onClick={() => setQuestionAnswers(prev => ({ ...prev, [qIdx]: opt }))}
+                            >
+                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${isChecked ? "border-teal-500 bg-teal-500" : "border-gray-300 bg-white"}`}>
+                                {isChecked && <div className="w-2 h-2 rounded-full bg-white" />}
+                              </div>
+                              <span className="text-[14px] font-bold text-gray-700">{opt}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Checkbox type questions */}
+                    {q.type === "checkbox" && sortedOptions.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        {sortedOptions.map((opt: string, optIdx: number) => {
+                          const currentVals = Array.isArray(questionAnswers[qIdx]) ? questionAnswers[qIdx] : [];
+                          const isChecked = currentVals.includes(opt);
+                          const handleToggle = () => {
+                            let nextVals;
+                            if (isChecked) {
+                              nextVals = currentVals.filter((v: string) => v !== opt);
+                            } else {
+                              nextVals = [...currentVals, opt];
+                            }
+                            setQuestionAnswers(prev => ({ ...prev, [qIdx]: nextVals }));
+                          };
+                          return (
+                            <label
+                              key={optIdx}
+                              className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${isChecked ? "bg-teal-50 border-teal-500" : "bg-white border-gray-200 hover:border-gray-300"}`}
+                              onClick={handleToggle}
+                            >
+                              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${isChecked ? "bg-teal-500 border-teal-500" : "bg-white border-gray-300"}`}>
+                                {isChecked && <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                              </div>
+                              <span className="text-[14px] font-bold text-gray-700">{opt}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Text type questions */}
+                    {q.type === "text" && (
+                      <textarea
+                        rows={3}
+                        placeholder="답변을 입력해주세요."
+                        value={questionAnswers[qIdx] || ""}
+                        onChange={(e) => setQuestionAnswers(prev => ({ ...prev, [qIdx]: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-xl px-4 py-3.5 text-[15px] outline-none focus:border-teal-500 bg-white resize-none"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* 동의 영역 */}
           <div id="consent-section-wrapper">

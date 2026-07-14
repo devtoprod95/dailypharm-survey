@@ -28,6 +28,8 @@ interface SurveyListData {
   id: string;
   title?: string;
   name: string;
+  page_type?: string;
+  questions?: { title: string; type: string; options?: { text: string; order: number }[] }[];
   created_at?: any;
 }
 
@@ -60,6 +62,8 @@ function ExcelPageContent() {
   const [dynamicKeys, setDynamicKeys] = useState<string[]>([]);
   const [surveyList, setSurveyList] = useState<SurveyListData[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  // 🔥 선택형 질문 키(질문 제목)를 별도 추적: 테이블에서 제외, 엑셀에서만 표시
+  const [questionKeys, setQuestionKeys] = useState<Set<string>>(new Set());
 
   // URL에서 파생되는 값들
   const selectedCollectionName = searchParams.get("targetCollection") || "";
@@ -98,6 +102,21 @@ function ExcelPageContent() {
     };
     fetchSurveyList();
   }, []);
+
+  // 🔥 선택된 설문지가 선택형이면 질문 키 집합을 파생
+  useEffect(() => {
+    if (!selectedCollectionName || surveyList.length === 0) {
+      setQuestionKeys(new Set());
+      return;
+    }
+    const matched = surveyList.find((s: any) => s.name === selectedCollectionName) as any;
+    if (matched && matched.page_type === "selective" && Array.isArray(matched.questions)) {
+      const qKeys = new Set<string>(matched.questions.map((q: any) => (q.title ? q.title.trim() : "")));
+      setQuestionKeys(qKeys);
+    } else {
+      setQuestionKeys(new Set());
+    }
+  }, [selectedCollectionName, surveyList]);
 
   // ─── 총 개수 조회 ────────────────────────────────────────────────
   const fetchTotalCount = useCallback(async (col: string, type: string, text: string) => {
@@ -315,12 +334,14 @@ function ExcelPageContent() {
   };
 
   // ─── 테이블 컬럼 ─────────────────────────────────────────────────
+  // 🔥 테이블에서는 선택형 질문 키를 제외하고 표시 (엑셀 다운로드에서는 포함됨)
+  const tableKeys = dynamicKeys.filter(key => !questionKeys.has(key));
   const columns: ColumnsType<SurveyData> = [
     { title: "No.", key: "no", width: 70, align: "center",
       render: (_, __, i) => total - ((currentPage - 1) * PAGE_SIZE) - i },
     { title: "신청시간", dataIndex: "created_at", key: "created_at", width: 200,
       render: (val) => <span style={{ whiteSpace: "nowrap" }}>{val?.toDate()?.toLocaleString() || "미정"}</span> },
-    ...dynamicKeys.map(key => ({
+    ...tableKeys.map(key => ({
       title: key, dataIndex: key, key,
       render: (text: any) => key === "성함" ? <Text strong>{text || "-"}</Text> : (text || "-"),
     })),
@@ -337,6 +358,9 @@ function ExcelPageContent() {
       ),
     },
   ];
+
+  // 🔥 선택형 질문 키가 있으면 상단에 안내 뱃지 표시용 플래그
+  const hasHiddenQuestionCols = questionKeys.size > 0;
 
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
@@ -405,6 +429,11 @@ function ExcelPageContent() {
           </Space.Compact>
 
           {/* 테이블 */}
+          {hasHiddenQuestionCols && (
+            <div style={{ padding: '8px 14px', backgroundColor: '#fffbe6', border: '1px solid #ffe58f', borderRadius: '8px', fontSize: '13px', color: '#7c5c00' }}>
+              📊 이 설문지는 <strong>선택형</strong> 페이지입니다. 질문 항목 ({Array.from(questionKeys).join(', ')}) 은 테이블에서 숨겨지며, <strong>엑셀 다운로드</strong> 시 포함됩니다.
+            </div>
+          )}
           <Table
             rowSelection={{ selectedRowKeys, onChange: keys => setSelectedRowKeys(keys) }}
             dataSource={data}
