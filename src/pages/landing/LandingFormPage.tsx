@@ -17,22 +17,21 @@ const DEFAULT_FORM_VALUES = {
   show_subtitle: true,
   show_top_image: true,
   top_image_url: "",
-  // 초기 디폴트 3개 세팅
+  // 초기 디폴트 2개 세팅
   fields: [
     { key: "name", label: "성함", type: "text", show: true, required: true },
     { key: "phone", label: "연락처", type: "number", show: true, required: true },
-    { key: "pharmacy", label: "약국명", type: "text", show: true, required: true },
   ],
   questions: [],
   terms_privacy: { 
     title: "개인정보 수집 및 이용 동의 (필수)", 
     show: true, 
-    content: "수집 업체 : 데일리팜\n수집 목적 : SNS 온라인 대행 6개월 패키지 상담 정보 제공\n수집 항목 : 성명/약국명/연락처\n보관 기간 : 신청 후 1년" 
+    content: "수집 업체 : 데일리팜\n수집 목적 : SNS 온라인 대행 6개월 패키지 상담 정보 제공\n수집 항목 : 성함/연락처\n보관 기간 : 신청 후 1년" 
   },
   terms_third_party: { 
     title: "개인정보 제3자 제공 동의 (필수)", 
     show: true, 
-    content: "제공받는 자 : 킹메이커\n이용 목적 : SNS 온라인 대행 운영 및 service 광고 및 마케팅\n수집 항목 : 성명/약국명/연락처\n보유 및 이용 기간 : 목적 달성 시까지 (관련 법령에 따라 보관 후 삭제)" 
+    content: "제공받는 자 : 킹메이커\n이용 목적 : SNS 온라인 대행 운영 및 service 광고 및 마케팅\n수집 항목 : 성함/연락처\n보유 및 이용 기간 : 목적 달성 시까지 (관련 법령에 따라 보관 후 삭제)" 
   },
   disagree_notice_text: "※ 미동의 시 상담 및 이벤트 혜택 수령이 불가능합니다.",
   show_disagree_notice: true,
@@ -65,7 +64,6 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
         const fixedFields = [
           { key: "name", label: "성함", type: "text", show: true, required: true },
           { key: "phone", label: "연락처", type: "number", show: true, required: true },
-          { key: "pharmacy", label: "약국명", type: "text", show: true, required: true },
         ];
 
         if (id) {
@@ -74,10 +72,10 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
           if (docSnap.exists()) {
             const data = docSnap.data();
 
-            // 기존 파베 데이터 중 고정 필드 3개를 제외한 나머지 커스텀 필드만 필터링 후 오름차순 정렬
+            // 기존 파베 데이터 중 고정 필드 2개를 제외한 나머지 커스텀 필드만 필터링 후 오름차순 정렬
             const customFields = data.fields
               ? Object.entries(data.fields)
-                  .filter(([key]) => !["name", "phone", "pharmacy"].includes(key))
+                  .filter(([key]) => !["name", "phone"].includes(key))
                   .sort(([keyA], [keyB]) => keyA.localeCompare(keyB, undefined, { numeric: true, sensitivity: 'base' }))
                   .map(([key, value]: [string, any]) => ({
                     key: key, // 🌟 원본 파베 필드명을 key 프로퍼티에 명시적으로 보존
@@ -124,7 +122,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
             setCurrentName(data.name || id);
           }
         } else {
-          // 신규 생성 시에도 고정 필드 3개는 기본 탑재
+          // 신규 생성 시에도 고정 필드 2개는 기본 탑재
           form.setFieldsValue({
             ...DEFAULT_FORM_VALUES,
             fields: fixedFields
@@ -277,10 +275,10 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
           let systemKey = "";
       
           if (f.key) {
-            // hidden 아이템을 통해 name, phone, pharmacy 또는 기존 커스텀 필드명 키가 유실 없이 넘어온 경우 그대로 매핑
+            // hidden 아이템을 통해 name, phone 또는 기존 커스텀 필드명 키가 유실 없이 넘어온 경우 그대로 매핑
             systemKey = f.key.trim();
           } else {
-            // 새로 추가한 필드(f.key가 없는 신규 항목)는 고정 필드 3개를 예외 처리하여 field_4부터 넘버링 부여
+            // 새로 추가한 필드(f.key가 없는 신규 항목)는 고정 필드 2개를 예외 처리하여 field_3부터 넘버링 부여
             systemKey = `field_${index + 1}`;
           }
           
@@ -504,7 +502,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {fields.map((field, index) => {
-                    const isFixed = index < 3;
+                    const isFixed = index < 2;
 
                     return (
                       <Card 
@@ -512,7 +510,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
                         style={{ backgroundColor: isFixed ? '#f5f5f5' : '#fbfbfb', border: isFixed ? '1px solid #d9d9d9' : '1px solid #f0f0f0' }} 
                         key={field.key}
                         actions={
-                          !isFixed && fields.length > 3 ? [
+                          !isFixed && fields.length > 2 ? [
                             <Button 
                               type="text" 
                               danger 

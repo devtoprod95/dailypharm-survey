@@ -269,9 +269,9 @@ export default function LandingDetailPage() {
           {/* 🔥 무작위 시스템 키 구조에 종속되지 않고, key(field_1, field_2...) 기준으로 오름차순 정렬하여 노출 */}
           <div className="space-y-5 mb-8 w-full">
             {Object.entries(landingData.fields)
-              // 🔥 name -> phone -> pharmacy 순서로 최상단 고정, 나머지는 오름차순 정렬
+              // 🔥 name -> phone 순서로 최상단 고정, 나머지는 오름차순 정렬
               .sort(([keyA], [keyB]) => {
-                const fixedKeys = ["name", "phone", "pharmacy"];
+                const fixedKeys = ["name", "phone"];
                 const isA_Fixed = fixedKeys.includes(keyA);
                 const isB_Fixed = fixedKeys.includes(keyB);
 
