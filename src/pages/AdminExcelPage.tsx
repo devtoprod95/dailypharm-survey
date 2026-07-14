@@ -335,7 +335,7 @@ function ExcelPageContent() {
 
   // ─── 테이블 컬럼 ─────────────────────────────────────────────────
   // 🔥 테이블에서는 선택형 질문 키를 제외하고 표시 (엑셀 다운로드에서는 포함됨)
-  const tableKeys = dynamicKeys.filter(key => !questionKeys.has(key));
+  const tableKeys = dynamicKeys.filter(key => ( !questionKeys.has(key) && PRIORITY_KEYS.includes(key) ));
   const columns: ColumnsType<SurveyData> = [
     { title: "No.", key: "no", width: 70, align: "center",
       render: (_, __, i) => total - ((currentPage - 1) * PAGE_SIZE) - i },
