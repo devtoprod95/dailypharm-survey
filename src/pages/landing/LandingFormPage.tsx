@@ -263,9 +263,9 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
       return;
     }
 
-    // 신규 생성인데 이미지가 하나도 없는 경우
-    if (!isEditMode && imageItems.length === 0) {
-      alert("새로운 랜딩 페이지를 만들 때는 최소 하나의 홍보 이미지를 필수로 등록해 주세요.");
+    // 이미지가 하나도 없는 경우 (신규/수정 공통)
+    if (imageItems.length === 0) {
+      alert("최소 하나의 홍보 이미지를 필수로 등록해 주세요.");
       const uploadSection = document.getElementById("image-upload-section");
       if (uploadSection) {
         uploadSection.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -340,34 +340,104 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
           });
         };
 
+        const headers = {
+          Authorization: `token ${token}`,
+          'Content-Type': 'application/json',
+        };
+
+        // 1. 메인 브랜치의 최신 커밋(Ref) 정보 조회
+        const refRes = await fetch(
+          `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/main`,
+          { headers }
+        );
+        if (!refRes.ok) throw new Error("GitHub Refs 정보를 가져오는데 실패했습니다.");
+        const refData = await refRes.json();
+        const parentCommitSha = refData.object.sha;
+
+        // 2. 부모 커밋 정보를 상세 조회하여 트리(Tree) SHA 확인
+        const commitRes = await fetch(
+          `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/commits/${parentCommitSha}`,
+          { headers }
+        );
+        if (!commitRes.ok) throw new Error("GitHub 커밋 정보를 가져오는데 실패했습니다.");
+        const commitData = await commitRes.json();
+        const baseTreeSha = commitData.tree.sha;
+
+        // 3. 업로드 대상 파일 각각에 대해 GitHub Blob 생성
+        const treeNodes = [];
         for (let idx = 0; idx < imageItems.length; idx++) {
           const item = imageItems[idx];
           if (item.rawFile) {
             const base64Content = await getBase64(item.rawFile);
-            // N개 이미지 업로드 시 인덱스를 붙여 _pending.png로 업로드
-            const filePath = `public/assets/${fieldNameValue}_${idx}_pending.png`;
-
-            const gitRes = await fetch(
-              `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filePath}`,
+            const blobRes = await fetch(
+              `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/blobs`,
               {
-                method: 'PUT',
-                headers: {
-                  Authorization: `token ${token}`,
-                  'Content-Type': 'application/json',
-                },
+                method: 'POST',
+                headers,
                 body: JSON.stringify({
-                  message: `upload: ${fieldNameValue} 이미지 ${idx + 1} 대기열 추가`,
                   content: base64Content,
-                  branch: "main"
+                  encoding: 'base64',
                 }),
               }
             );
-
-            if (!gitRes.ok) {
-              throw new Error(`GitHub 이미지 [${idx + 1}번] 등록에 실패했습니다. 토큰 권한을 확인해주세요.`);
-            }
+            if (!blobRes.ok) throw new Error(`GitHub 이미지 [${idx + 1}번] 블롭 생성에 실패했습니다.`);
+            const blobData = await blobRes.json();
+            
+            treeNodes.push({
+              path: `public/assets/${fieldNameValue}_${idx}_pending.png`,
+              mode: '100644',
+              type: 'blob',
+              sha: blobData.sha,
+            });
           }
         }
+
+        // 4. 새로운 파일 트리 생성
+        const treeRes = await fetch(
+          `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/trees`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              base_tree: baseTreeSha,
+              tree: treeNodes,
+            }),
+          }
+        );
+        if (!treeRes.ok) throw new Error("GitHub 새 트리 생성에 실패했습니다.");
+        const treeData = await treeRes.json();
+        const newTreeSha = treeData.sha;
+
+        // 5. 단일 커밋(Atomic Commit) 생성
+        const newCommitRes = await fetch(
+          `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/commits`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              message: `upload: ${fieldNameValue} 이미지 ${treeNodes.length}개 대기열 추가`,
+              tree: newTreeSha,
+              parents: [parentCommitSha],
+            }),
+          }
+        );
+        if (!newCommitRes.ok) throw new Error("GitHub 새 커밋 생성에 실패했습니다.");
+        const newCommitData = await newCommitRes.json();
+        const newCommitSha = newCommitData.sha;
+
+        // 6. 메인 브랜치 Ref 업데이트
+        const updateRefRes = await fetch(
+          `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/main`,
+          {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({
+              sha: newCommitSha,
+              force: false,
+            }),
+          }
+        );
+        if (!updateRefRes.ok) throw new Error("GitHub 메인 브랜치 업데이트에 실패했습니다.");
       }
   
       // 🔥 [정밀 수정] 렌더링 시 보존한 key 속성을 기준으로 파베 객체 필드명 최종 추출
