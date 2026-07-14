@@ -45,14 +45,28 @@ const DEFAULT_FORM_VALUES = {
 const REPO_OWNER = "devtoprod95";
 const REPO_NAME = "dailypharm-survey";
 
+interface ImageItem {
+  id: string;
+  previewUrl: string | null;
+  rawFile: File | null;
+  existingUrl: string | null;
+}
+
+const getImgSrc = (url: string) => {
+  if (!url) return "";
+  if (url.startsWith("http") || url.startsWith("data:")) return url;
+  const baseUrl = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+  const cleanUrl = url.startsWith("/") ? url : `/${url}`;
+  return `${baseUrl}${cleanUrl}`;
+};
+
 export default function LandingFormPage({ id, onBack }: { id?: string; onBack: () => void }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [imgError, setImgError] = useState(false); 
   const [timestamp, setTimestamp] = useState(new Date().getTime()); 
   const [token, setToken] = useState(""); 
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null); 
-  const [rawFile, setRawFile] = useState<File | null>(null); 
+  const [imageItems, setImageItems] = useState<ImageItem[]>([]);
   const [currentName, setCurrentName] = useState("");
   const pageType = Form.useWatch("page_type", form) || "normal";
 
@@ -120,6 +134,24 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
             });
           
             setCurrentName(data.name || id);
+
+            let loadedImages: ImageItem[] = [];
+            if (data.images && Array.isArray(data.images)) {
+              loadedImages = data.images.map((url, idx) => ({
+                id: `existing-${idx}-${new Date().getTime()}`,
+                previewUrl: null,
+                rawFile: null,
+                existingUrl: url,
+              }));
+            } else if (data.top_image_url) {
+              loadedImages = [{
+                id: `existing-0-${new Date().getTime()}`,
+                previewUrl: null,
+                rawFile: null,
+                existingUrl: data.top_image_url,
+              }];
+            }
+            setImageItems(loadedImages);
           }
         } else {
           // 신규 생성 시에도 고정 필드 2개는 기본 탑재
@@ -128,6 +160,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
             fields: fixedFields
           });
           setCurrentName("");
+          setImageItems([]);
         }
       } catch (error) {
         alert("데이터 로드에 실패했습니다.");
@@ -137,6 +170,57 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
     };
     initForm();
   }, [id, form]);
+
+  // 이미지 처리용 헬퍼 함수들
+  const addImageItem = () => {
+    setImageItems((prev) => [
+      ...prev,
+      {
+        id: `new-${new Date().getTime()}-${prev.length}`,
+        previewUrl: null,
+        rawFile: null,
+        existingUrl: null,
+      },
+    ]);
+  };
+
+  const removeImageItem = (index: number) => {
+    setImageItems((prev) => {
+      const target = prev[index];
+      if (target.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((_, idx) => idx !== index);
+    });
+  };
+
+  const moveImageItem = (index: number, direction: "up" | "down") => {
+    setImageItems((prev) => {
+      const next = [...prev];
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= next.length) return prev;
+      const temp = next[index];
+      next[index] = next[targetIndex];
+      next[targetIndex] = temp;
+      return next;
+    });
+  };
+
+  const handleImageUpload = (index: number, file: File) => {
+    setImageItems((prev) => {
+      const next = [...prev];
+      if (next[index].previewUrl) {
+        URL.revokeObjectURL(next[index].previewUrl!);
+      }
+      next[index] = {
+        ...next[index],
+        rawFile: file,
+        previewUrl: URL.createObjectURL(file),
+      };
+      return next;
+    });
+    setTimestamp(new Date().getTime());
+  };
 
   // 2. 중복 체크 벨리데이션
   const checkDuplicateName = async (_: any, value: string) => {
@@ -157,7 +241,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
     }
   };
 
-  // 3. 저장하기 파트 (수정: 히든 필드로 동기화된 f.key 유무를 판단하여 키 고정)
+  // 3. 저장하기 파트 (수정: 히든 필드로 동기화된 f.key 유무를 판단하여 키 고정 및 다중 이미지 업로드 지원)
   const onFinish = async (values: any) => {
     const fieldNameValue = values.name ? values.name.trim() : "";
     
@@ -166,13 +250,34 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
     }
   
     const targetDocId = id ? id.trim() : fieldNameValue;
-    const finalImageUrl = `/assets/${fieldNameValue}.png`;
     const isEditMode = !!id;
-    const isImageChanged = !!rawFile; 
-    const isGitHubApiRequired = !isEditMode || isImageChanged; 
-  
+
+    // 빈 이미지 슬롯이 있는지 확인
+    const hasEmptySlots = imageItems.some(item => !item.existingUrl && !item.rawFile);
+    if (hasEmptySlots) {
+      alert("이미지가 선택되지 않은 빈 슬롯이 있습니다. 이미지 파일을 선택하거나 빈 슬롯을 삭제해 주세요.");
+      const uploadSection = document.getElementById("image-upload-section");
+      if (uploadSection) {
+        uploadSection.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      return;
+    }
+
+    // 신규 생성인데 이미지가 하나도 없는 경우
+    if (!isEditMode && imageItems.length === 0) {
+      alert("새로운 랜딩 페이지를 만들 때는 최소 하나의 홍보 이미지를 필수로 등록해 주세요.");
+      const uploadSection = document.getElementById("image-upload-section");
+      if (uploadSection) {
+        uploadSection.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      return;
+    }
+
+    const hasNewUploads = imageItems.some(item => item.rawFile !== null);
+    const isGitHubApiRequired = hasNewUploads;
+
     if (isGitHubApiRequired && !token) {
-      alert(isEditMode ? "이미지를 변경하시려면 GitHub 토큰을 입력해 주세요." : "신규 생성 시에는 이미지 업로드를 위해 GitHub 토큰이 필수입니다.");
+      alert(isEditMode ? "새로운 이미지를 추가/변경하시려면 GitHub 토큰을 입력해 주세요." : "신규 생성 시에는 이미지 업로드를 위해 GitHub 토큰이 필수입니다.");
       const tokenInput = document.getElementById("github-token-input");
       if (tokenInput) {
         tokenInput.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -181,15 +286,6 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
       return;
     }
   
-    if (!isEditMode && !rawFile) {
-      alert("새로운 랜딩 페이지를 만들 때는 상단 이미지를 필수로 선택해 주세요.");
-      const uploadSection = document.getElementById("image-upload-section");
-      if (uploadSection) {
-        uploadSection.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-      return;
-    }
-
     // 3. 저장하기 눌렀을 때 선택형 경우 검사 로직
     if (values.page_type === "selective") {
       const qs = values.questions || [];
@@ -234,7 +330,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
   
     setLoading(true);
     try {
-      if (isGitHubApiRequired && rawFile) {
+      if (hasNewUploads) {
         const getBase64 = (file: File): Promise<string> => {
           return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -243,28 +339,34 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
             reader.onerror = (error) => reject(error);
           });
         };
-  
-        const base64Content = await getBase64(rawFile);
-        const filePath = `public/assets/${fieldNameValue}_pending.png`;
-  
-        const gitRes = await fetch(
-          `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filePath}`,
-          {
-            method: 'PUT',
-            headers: {
-              Authorization: `token ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              message: `upload: ${fieldNameValue} 랜딩 이미지 대기열 추가`,
-              content: base64Content,
-              branch: "main"
-            }),
+
+        for (let idx = 0; idx < imageItems.length; idx++) {
+          const item = imageItems[idx];
+          if (item.rawFile) {
+            const base64Content = await getBase64(item.rawFile);
+            // N개 이미지 업로드 시 인덱스를 붙여 _pending.png로 업로드
+            const filePath = `public/assets/${fieldNameValue}_${idx}_pending.png`;
+
+            const gitRes = await fetch(
+              `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filePath}`,
+              {
+                method: 'PUT',
+                headers: {
+                  Authorization: `token ${token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  message: `upload: ${fieldNameValue} 이미지 ${idx + 1} 대기열 추가`,
+                  content: base64Content,
+                  branch: "main"
+                }),
+              }
+            );
+
+            if (!gitRes.ok) {
+              throw new Error(`GitHub 이미지 [${idx + 1}번] 등록에 실패했습니다. 토큰 권한을 확인해주세요.`);
+            }
           }
-        );
-  
-        if (!gitRes.ok) {
-          throw new Error("GitHub 이미지 등록에 실패했습니다. 토큰 권한을 확인해주세요.");
         }
       }
   
@@ -291,22 +393,31 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
         });
       }
 
+      // 최종 이미지 URL 목록 구성
+      const dbImagesList = imageItems.map((item, idx) => {
+        if (item.rawFile) {
+          return `/assets/${fieldNameValue}_${idx}.png`;
+        }
+        return item.existingUrl || "";
+      }).filter(Boolean);
+ 
       const savePayload = {
         ...values,
         name: fieldNameValue, 
-        top_image_url: finalImageUrl,
+        top_image_url: dbImagesList[0] || "",
+        images: dbImagesList,
         fields: dbFieldsObject, 
         questions: values.page_type === "selective" ? (values.questions || []) : [],
         created_at: isEditMode ? (form.getFieldValue("created_at") || serverTimestamp()) : serverTimestamp(),
         updated_at: serverTimestamp(),
       };
-
+ 
       await setDoc(doc(db, "survey_list", targetDocId), savePayload);
   
       let alertText = isGitHubApiRequired ? "저장되었습니다." : "수정되었습니다.";
       alertText += " 이미지 처리는 일정 시간이 소요됩니다.";
       alert(alertText);
-
+ 
       onBack();
     } catch (e: any) {
       console.error(e);
@@ -408,63 +519,98 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
             </Radio.Group>
           </Form.Item>
 
-          {/* 1. 상단 비주얼 영역 */}
-          <SectionHeader num="1" title="상단 비주얼 영역" />
+          {/* 1. 상단 홍보 이미지 설정 (N개 등록 가능) */}
+          <SectionHeader num="1" title="상단 홍보 이미지 설정 (N개 등록 가능)" />
           <Form.Item name="show_top_image" valuePropName="checked">
             <Checkbox>상단 이미지 영역 노출</Checkbox>
           </Form.Item>
-          
-          <Space id="image-upload-section" orientation="vertical" style={{ width: '100%' }} size="middle">
-            <Upload 
-              beforeUpload={(file) => {
-                setImgError(false);
-                setTimestamp(new Date().getTime());
-                setRawFile(file);
-                const objectUrl = URL.createObjectURL(file);
-                setPreviewUrl(objectUrl);
-                return false; 
-              }} 
-              showUploadList={false}
+
+          <div id="image-upload-section" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+            {imageItems.map((item, idx) => (
+              <Card 
+                size="small" 
+                key={item.id} 
+                style={{ backgroundColor: '#fbfbfb', border: '1px solid #f0f0f0' }}
+                title={
+                  <Space>
+                    <span style={{ fontWeight: 'bold', fontSize: '13px' }}>📷 이미지 {idx + 1}</span>
+                  </Space>
+                }
+                extra={
+                  <Space>
+                    <Button 
+                      size="small" 
+                      disabled={idx === 0} 
+                      onClick={() => moveImageItem(idx, 'up')}
+                    >
+                      ▲ 위로
+                    </Button>
+                    <Button 
+                      size="small" 
+                      disabled={idx === imageItems.length - 1} 
+                      onClick={() => moveImageItem(idx, 'down')}
+                    >
+                      ▼ 아래로
+                    </Button>
+                    <Button 
+                      size="small" 
+                      danger 
+                      onClick={() => removeImageItem(idx)}
+                    >
+                      삭제
+                    </Button>
+                  </Space>
+                }
+              >
+                <Row gutter={[16, 12]} align="middle">
+                  <Col xs={24} sm={10}>
+                    <Upload 
+                      beforeUpload={(file) => {
+                        handleImageUpload(idx, file);
+                        return false; 
+                      }} 
+                      showUploadList={false}
+                    >
+                      <Button icon={<UploadIcon size={12} />} size="small">
+                        {item.previewUrl || item.existingUrl ? "이미지 변경" : "이미지 선택"}
+                      </Button>
+                    </Upload>
+                  </Col>
+                  <Col xs={24} sm={14} style={{ display: 'flex', justifyContent: 'center' }}>
+                    {item.previewUrl ? (
+                      <Image 
+                        src={item.previewUrl} 
+                        alt={`이미지 ${idx + 1} 미리보기`} 
+                        style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain' }} 
+                        preview={{ wheelZoom: true, minScale: 1, maxScale: 10 } as any}
+                      />
+                    ) : item.existingUrl ? (
+                      <Image 
+                        src={getImgSrc(item.existingUrl) + `?v=${timestamp}`} 
+                        alt={`이미지 ${idx + 1} 미리보기`} 
+                        style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain' }} 
+                        preview={{ wheelZoom: true, minScale: 1, maxScale: 10 } as any}
+                      />
+                    ) : (
+                      <div style={{ padding: '20px', color: '#999', backgroundColor: '#f0f0f0', borderRadius: 4, fontSize: '11px' }}>
+                        선택된 이미지가 없습니다.
+                      </div>
+                    )}
+                  </Col>
+                </Row>
+              </Card>
+            ))}
+
+            <Button 
+              type="dashed" 
+              onClick={addImageItem} 
+              block 
+              icon={<Plus size={14} />}
+              style={{ height: '40px' }}
             >
-              <Button icon={<UploadIcon size={14} />}>이미지 파일 선택</Button>
-            </Upload>
-            
-            <div style={{ padding: "16px", border: "1px dashed #d9d9d9", borderRadius: 4, textAlign: 'center', backgroundColor: '#fafafa', marginBottom: 20 }}>
-              <div style={{ marginBottom: 8 }}><Eye size={12} /> <Text type="secondary" style={{ fontSize: 12 }}>이미지 미리보기</Text></div>
-              
-              {(!previewUrl && !currentName) || imgError ? (
-                /* 이미지 없을 때 클릭하면 파일 업로드 창이 뜨도록 <Upload>로 감쌈 */
-                <Upload
-                  beforeUpload={(file) => {
-                    setImgError(false);
-                    setTimestamp(new Date().getTime());
-                    setRawFile(file);
-                    const objectUrl = URL.createObjectURL(file);
-                    setPreviewUrl(objectUrl);
-                    return false; 
-                  }} 
-                  showUploadList={false}
-                >
-                  <div style={{ padding: "30px 0", color: "#999", backgroundColor: "#f0f0f0", borderRadius: 4, border: "1px solid #e8e8e8", cursor: "pointer" }}>
-                    <Text type="secondary" strong style={{ display: "block", marginBottom: 4 }}>[ 이미지 없음 ]</Text>
-                    <Text type="secondary" style={{ fontSize: "11px" }}>이미지를 선택해 주세요.</Text>
-                  </div>
-                </Upload>
-              ) : (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
-                  <Image 
-                    src={previewUrl || `${import.meta.env.BASE_URL}assets/${currentName}.png?v=${timestamp}`} 
-                    alt="상단 비주얼 영역 미리보기" 
-                    style={{ maxHeight: 160, maxWidth: '100%', objectFit: 'contain' }}
-                    onError={() => {
-                      if (!previewUrl) setImgError(true);
-                    }} 
-                    preview={{ wheelZoom: true, minScale: 1, maxScale: 10 } as any}
-                  />
-                </div>
-              )}
-            </div>
-          </Space>
+              홍보 이미지 추가하기
+            </Button>
+          </div>
 
           {/* 제목 및 소제목 설정 */}
           <Card size="small" style={{ marginTop: 20, backgroundColor: '#fcfcfc' }}>

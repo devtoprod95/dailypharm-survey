@@ -235,15 +235,32 @@ export default function LandingDetailPage() {
       
       {/* 1. 상단 동적 배너 이미지 섹션 */}
       {landingData.show_top_image && (
-        <section className={`w-full max-w-[480px] bg-white transition-all duration-300 flex items-center justify-center ${isImageLoaded ? "h-auto" : "min-h-[200px]"}`}>
-          <img
-            src={`${import.meta.env.BASE_URL}${landingData.top_image_url?.replace(/^\//, '') || 'assets/landing.png'}`}
-            alt="랜딩 이미지"
-            className="w-full h-auto block object-contain"
-            onLoad={() => setIsImageLoaded(true)}
-            loading="eager"
-          />
-        </section>
+        <div className="w-full max-w-[480px] flex flex-col bg-white">
+          {(landingData.images && Array.isArray(landingData.images) && landingData.images.length > 0
+            ? landingData.images
+            : landingData.top_image_url
+              ? [landingData.top_image_url]
+              : ['/assets/landing.png']
+          ).map((imgUrl: string, idx: number) => {
+            const cleanImgSrc = imgUrl.startsWith("http") || imgUrl.startsWith("data:")
+              ? imgUrl
+              : `${import.meta.env.BASE_URL}${imgUrl.replace(/^\//, '')}`;
+            return (
+              <section 
+                key={idx} 
+                className={`w-full bg-white transition-all duration-300 flex items-center justify-center ${idx === 0 && !isImageLoaded ? "min-h-[200px]" : "h-auto"}`}
+              >
+                <img
+                  src={cleanImgSrc}
+                  alt={`랜딩 이미지 ${idx + 1}`}
+                  className="w-full h-auto block object-contain"
+                  onLoad={idx === 0 ? () => setIsImageLoaded(true) : undefined}
+                  loading="eager"
+                />
+              </section>
+            );
+          })}
+        </div>
       )}
 
       {/* 2. 메인 서베이 입력 카드 폼 */}

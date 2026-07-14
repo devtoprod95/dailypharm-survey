@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 0 # 히스토리 전체를 가져와야 git push가 안전합니다.
 
-      # --- [수정된 로직] 동적 이미지(컬렉션별) 로테이션 및 백업 ---
+      # --- [수정된 로직] 동적 이미지(컬렉션별) 로테이션 ---
       - name: Rotate and Prepare Images
         run: |
           # 1. public/assets/ 폴더 내에 _pending.png로 끝나는 파일이 하나라도 있는지 확인
@@ -25,19 +25,11 @@ jobs:
             
             # 2. _pending.png 파일들을 하나씩 돌면서 로테이션 처리
             for pending_file in public/assets/*_pending.png; do
-              # 파일 경로에서 실제 파일명 추출 (예: public/assets/survey_pharm_start_pending.png)
+              # 파일 경로에서 실제 파일명 추출 (예: public/assets/survey_pharm_start_0_pending.png)
               echo "Processing: $pending_file"
               
-              # _pending.png를 제거하여 실 서비스용 파일명 정의 (예: public/assets/survey_pharm_start.png)
+              # _pending.png를 제거하여 실 서비스용 파일명 정의 (예: public/assets/survey_pharm_start_0.png)
               real_file="${pending_file%_pending.png}.png"
-              # 이전 이미지 백업용 파일명 정의 (예: public/assets/survey_pharm_start_prev.png)
-              prev_file="${pending_file%_pending.png}_prev.png"
-              
-              # 기존에 사용 중인 실 서비스용 이미지가 있다면 _prev.png로 백업
-              if [ -f "$real_file" ]; then
-                mv "$real_file" "$prev_file"
-                echo "Backup created: $prev_file"
-              fi
               
               # 대기 중인 _pending 파일을 실 서비스용 파일명으로 변경
               mv "$pending_file" "$real_file"
