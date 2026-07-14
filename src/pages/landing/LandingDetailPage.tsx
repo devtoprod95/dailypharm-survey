@@ -230,6 +230,10 @@ export default function LandingDetailPage() {
 
   if (!landingData) return null;
 
+  const cacheBuster = landingData.updated_at
+    ? (typeof landingData.updated_at.toMillis === 'function' ? landingData.updated_at.toMillis() : landingData.updated_at.seconds || new Date().getTime())
+    : new Date().getTime();
+
   return (
     <div className="min-h-screen bg-white font-sans overflow-x-hidden w-full flex flex-col items-center touch-pan-y">
       
@@ -245,13 +249,14 @@ export default function LandingDetailPage() {
             const cleanImgSrc = imgUrl.startsWith("http") || imgUrl.startsWith("data:")
               ? imgUrl
               : `${import.meta.env.BASE_URL}${imgUrl.replace(/^\//, '')}`;
+            const separator = cleanImgSrc.includes('?') ? '&' : '?';
             return (
               <section 
                 key={idx} 
                 className={`w-full bg-white transition-all duration-300 flex items-center justify-center ${idx === 0 && !isImageLoaded ? "min-h-[200px]" : "h-auto"}`}
               >
                 <img
-                  src={cleanImgSrc}
+                  src={`${cleanImgSrc}${separator}v=${cacheBuster}`}
                   alt={`랜딩 이미지 ${idx + 1}`}
                   className="w-full h-auto block object-contain"
                   onLoad={idx === 0 ? () => setIsImageLoaded(true) : undefined}
