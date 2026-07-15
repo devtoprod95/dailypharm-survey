@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { db } from "../../lib/firebase"; 
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../../../lib/firebase"; 
+import { collection, doc, getDoc, addDoc, serverTimestamp } from "firebase/firestore";
 
 // --- 기본 fallback 설정 체계 보정 ---
 const INITIAL_CONFIG = {
@@ -22,7 +22,7 @@ const INITIAL_CONFIG = {
 };
 
 export default function LandingDetailPage() {
-  const { name } = useParams<{ name: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const [landingData, setLandingData] = useState<any>(null);
@@ -39,14 +39,14 @@ export default function LandingDetailPage() {
 
   useEffect(() => {
     const fetchLandingConfig = async () => {
-      if (!name) return;
+      if (!id) return;
       setLoading(true);
       try {
-        const q = query(collection(db, "survey_list"), where("name", "==", name.trim()));
-        const querySnapshot = await getDocs(q);
+        // 💡 Firestore 문서 ID로 직접 조회 (where 쿼리 대비 빠르고 정확)
+        const docRef = doc(db, "survey_list", id);
+        const docSnap = await getDoc(docRef);
 
-        if (!querySnapshot.empty) {
-          const docSnap = querySnapshot.docs[0];
+        if (docSnap.exists()) {
           const rawData = docSnap.data();
           
           const mergedData = {
@@ -78,7 +78,7 @@ export default function LandingDetailPage() {
     };
 
     fetchLandingConfig();
-  }, [name, navigate]);
+  }, [id, navigate]);
 
   // 🔥 입력 변경 핸들러 (타입별 입력 제어 추가)
   const handleInputChange = (key: string, value: string, type: string) => {
@@ -162,7 +162,8 @@ export default function LandingDetailPage() {
     setIsSubmitting(true);
 
     try {
-      if (name) {
+      // 🔥 id(Firestore 문서 ID)가 존재할 때만 제출 처리
+      if (id && landingData.name) {
         // 🔥 [수정/확인] 라벨명을 키값으로 매핑한 전송용 결과 데이터 생성
         const submissionAnswers: Record<string, string> = {};
         Object.entries(landingData.fields).forEach(([key, config]: [string, any]) => {
@@ -192,8 +193,9 @@ export default function LandingDetailPage() {
         }
 
         // 🔥 [변경] 기존의 ...form 대신 라벨명으로 정제된 ...submissionAnswers를 전송합니다.
-        await addDoc(collection(db, name), {
-          target: landingData.name || name,
+        const collectionName = landingData.name; // Firestore 콜렉션명 = 설문지명
+        await addDoc(collection(db, collectionName), {
+          target: landingData.name,
           ...submissionAnswers, 
           created_at: serverTimestamp(),
         });

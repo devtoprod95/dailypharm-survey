@@ -325,7 +325,11 @@ function ExcelPageContent() {
 
       const csv = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
       const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
-      Object.assign(document.createElement("a"), { href: url, download: `상담신청_내역_${new Date().toISOString().slice(0, 10)}.csv` }).click();
+      const now = new Date();
+      const datePart = now.toISOString().slice(0, 10).replace(/-/g, "");
+      const timePart = now.toTimeString().slice(0, 8).replace(/:/g, "");
+      const fileName = `${selectedCollectionName}_${datePart}_${timePart}.csv`;
+      Object.assign(document.createElement("a"), { href: url, download: fileName }).click();
       URL.revokeObjectURL(url);
       msg.success("다운로드 완료");
     } catch {

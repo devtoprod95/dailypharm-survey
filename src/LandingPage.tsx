@@ -23,12 +23,12 @@ export default function LandingPage() {
         if (!querySnapshot.empty) {
           const latestDoc = querySnapshot.docs[0];
           
-          // 💡 문서의 ID를 안전하게 추출 (survey-2026-05)
-          const latestId = latestDoc.data().name.trim(); 
+          // 💡 문서의 Firestore ID를 사용하여 /landing/:id 형태로 이동
+          const latestId = latestDoc.id;
 
           if (latestId) {
             // 💡 절대 주소인 /landing/ID 형태로 replace 이동
-            navigate(`/landing/${latestId}`, { replace: true });
+            navigate(`/landing/view/${latestId}`, { replace: true });
           } else {
             setError("최신 설문지의 고유 ID(문서 ID)가 유효하지 않습니다.");
           }

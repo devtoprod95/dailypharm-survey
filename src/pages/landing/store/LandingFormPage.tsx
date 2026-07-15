@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "../../lib/firebase"; 
+import { db } from "../../../lib/firebase"; 
 import { Form, Input, Button, Card, Checkbox, Space, Typography, Divider, Row, Col, Upload, Image, Select, Radio } from "antd"; 
 import { ArrowLeft, Eye, Upload as UploadIcon, Key as KeyIcon, AlertCircle, Plus, Trash2, GripVertical } from "lucide-react"; 
 
@@ -60,7 +61,9 @@ const getImgSrc = (url: string) => {
   return `${baseUrl}${cleanUrl}`;
 };
 
-export default function LandingFormPage({ id, onBack }: { id?: string; onBack: () => void }) {
+export default function LandingFormPage() {
+  const { id } = useParams<{ id?: string }>();
+  const navigate = useNavigate();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [imgError, setImgError] = useState(false); 
@@ -152,6 +155,11 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
               }];
             }
             setImageItems(loadedImages);
+          } else {
+            // id가 있지만 문서가 존재하지 않을 때
+            alert("존재하지 않거나 삭제된 데이터입니다.");
+            navigate("/landing");
+            return;
           }
         } else {
           // 신규 생성 시에도 고정 필드 2개는 기본 탑재
@@ -488,7 +496,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
       alertText += " 이미지 처리는 일정 시간이 소요됩니다.";
       alert(alertText);
  
-      onBack();
+      navigate("/landing");
     } catch (e: any) {
       console.error(e);
       alert(e.message || "저장 실패");
@@ -512,7 +520,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
 
   return (
     <div style={{ padding: "40px 20px", maxWidth: "800px", margin: "0 auto" }}>
-      <Button icon={<ArrowLeft size={14} />} onClick={onBack} style={{ marginBottom: 20 }}>목록으로</Button>
+      <Button icon={<ArrowLeft size={14} />} onClick={() => navigate("/landing")} style={{ marginBottom: 20 }}>목록으로</Button>
       
       <Card variant="borderless" className="shadow-sm">
         <Title level={3}>{id ? "상세 내용 수정" : "새 랜딩 페이지 추가"}</Title>
@@ -1092,7 +1100,7 @@ export default function LandingFormPage({ id, onBack }: { id?: string; onBack: (
             {/* 목록으로 버튼 (50%) */}
             <Button 
               icon={<ArrowLeft size={14} />} 
-              onClick={onBack} 
+              onClick={() => navigate("/landing")} 
               style={{ 
                 flex: 1, 
                 height: 50, 

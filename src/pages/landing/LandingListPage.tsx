@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { collection, getDocs, deleteDoc, doc, query, orderBy, writeBatch } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { Table, Button, Space, Typography, Card } from "antd"; 
@@ -6,7 +7,8 @@ import { Plus, Edit, Trash2, ExternalLink } from "lucide-react";
 
 const { Title } = Typography;
 
-export default function LandingListPage({ onEdit, onAdd }: { onEdit: (id: string) => void; onAdd: () => void }) {
+export default function LandingListPage() {
+  const navigate = useNavigate();
   const [list, setList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,23 +28,16 @@ export default function LandingListPage({ onEdit, onAdd }: { onEdit: (id: string
   useEffect(() => { fetchList(); }, []);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm("정말 삭제하시겠습니까?")) {
-      return;
-    }
+    if (!window.confirm("정말 삭제하시겠습니까?")) return;
 
     try {
       const replyCollectionRef = collection(db, name);
       const replySnapshot = await getDocs(replyCollectionRef);
       
-      // 2. 일괄 삭제를 위한 묶음(Batch) 생성
       const batch = writeBatch(db);
-      
-      // 컬렉션 하위에 문서들이 존재할 경우에만 일괄 삭제 등록
       replySnapshot.forEach((document) => {
         batch.delete(document.ref);
       });
-
-      // 3. 참여자 응답 데이터 일괄 삭제 실행
       await batch.commit();
 
       await deleteDoc(doc(db, "survey_list", id));
@@ -54,9 +49,9 @@ export default function LandingListPage({ onEdit, onAdd }: { onEdit: (id: string
     }
   };
 
-  const handleViewLanding = (recordName: string) => {
+  const handleViewLanding = (recordId: string) => {
     const baseUrl = window.location.origin + window.location.pathname;
-    const landingUrl = `${baseUrl}#/landing/${recordName}`;
+    const landingUrl = `${baseUrl}#/landing/view/${recordId}`;
     window.open(landingUrl, "_blank"); 
   };
 
@@ -73,12 +68,12 @@ export default function LandingListPage({ onEdit, onAdd }: { onEdit: (id: string
           <Button 
             type="dashed"
             icon={<ExternalLink size={14} />} 
-            onClick={() => handleViewLanding(record.name)}
+            onClick={() => handleViewLanding(record.id)}
           >
             보기
           </Button>
           
-          <Button icon={<Edit size={14} />} onClick={() => onEdit(record.id)}>수정</Button>
+          <Button icon={<Edit size={14} />} onClick={() => navigate(`/landing/store/${record.id}`)}>수정</Button>
           
           <Button danger icon={<Trash2 size={14} />} onClick={() => handleDelete(record.id, record.name)} />
         </Space>
@@ -91,22 +86,18 @@ export default function LandingListPage({ onEdit, onAdd }: { onEdit: (id: string
       <Card variant="borderless" className="shadow-sm">
         <Space style={{ justifyContent: "space-between", width: "100%", marginBottom: 20 }}>
           <Title level={3} style={{ margin: 0 }}>랜딩 페이지 템플릿 관리</Title>
-          <Button type="primary" icon={<Plus size={14} />} onClick={onAdd} style={{ backgroundColor: '#27ae60', borderColor: '#27ae60' }}>
+          <Button type="primary" icon={<Plus size={14} />} onClick={() => navigate("/landing/store")} style={{ backgroundColor: '#27ae60', borderColor: '#27ae60' }}>
             새 랜딩페이지 추가
           </Button>
         </Space>
 
-        {/* 💡 pagination 속성을 추가하여 한 페이지에 30개씩 보이도록 제어합니다. */}
         <Table 
           dataSource={list} 
           columns={columns} 
           rowKey="id" 
           loading={loading} 
           pagination={{
-            pageSize: 30, // 한 페이지에 노출할 데이터 수
-            // showSizeChanger: true, // 사용자가 10, 20, 30, 50개씩 보기 변경 가능 옵션
-            // pageSizeOptions: ["30", "100", "150", "500"], // 변경 가능한 선택지 구성
-            // placement: ["bottomCenter"] // 페이지네이션 번호 위치를 하단 중앙으로 배치
+            pageSize: 30,
           }}
         />
       </Card>
