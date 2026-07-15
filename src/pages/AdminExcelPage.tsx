@@ -309,14 +309,16 @@ function ExcelPageContent() {
       allData.forEach(r => Object.keys(r).forEach(k => { if (!EXCLUDED_KEYS.includes(k)) keysSet.add(k); }));
       const keys = sortDynamicKeys(keysSet);
 
-      const headers = ["No", "신청시간", ...keys];
+      const escapeCell = (v: string) =>
+        v.includes(",") || v.includes("\n") || v.includes('"')
+          ? `"${v.replace(/"/g, '""')}"` : v;
+      const headers = ["No", "신청시간", ...keys].map(escapeCell);
       const rows = allData.map((item, i) => {
         const cells = [String(allData.length - i), item.created_at?.toDate()?.toLocaleString() || "미정"];
         keys.forEach(k => {
           let val = item[k] !== undefined ? String(item[k]) : "";
           if (k === "연락처" || (val.startsWith("0") && !isNaN(Number(val.replace(/-/g, ""))))) val = `="${val}"`;
-          cells.push(val.includes(",") || val.includes("\n") || val.includes('"')
-            ? `"${val.replace(/"/g, '""')}"` : val);
+          cells.push(escapeCell(val));
         });
         return cells;
       });
