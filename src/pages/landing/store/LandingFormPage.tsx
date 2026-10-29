@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../../../lib/firebase"; 
-import { Form, Input, Button, Card, Checkbox, Space, Typography, Divider, Row, Col, Upload, Image, Select, Radio } from "antd"; 
-import { ArrowLeft, Eye, Upload as UploadIcon, Key as KeyIcon, AlertCircle, Plus, Trash2, GripVertical } from "lucide-react"; 
+import { Form, Input, Button, Card, Checkbox, Space, Typography, Divider, Row, Col, Upload, Image, Select, Radio, Tooltip } from "antd"; 
+import { ArrowLeft, Eye, Upload as UploadIcon, Key as KeyIcon, AlertCircle, Plus, Trash2, GripVertical, Info } from "lucide-react"; 
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -11,6 +11,9 @@ const { Option } = Select;
 
 const DEFAULT_FORM_VALUES = {
   name: "",
+  status: "recruiting",
+  closed_title: "모집이 완료되었습니다",
+  closed_description: "해당 설문 모집이 종료되어 더 이상 신청하실 수 없습니다. 많은 관심에 진심으로 감사드립니다.\n\n관련 문의 이메일 : pharmstart@dailypharm.com",
   page_type: "normal",
   show_title: true,
   title: "팜스타트 대행 서비스 신청",
@@ -531,6 +534,18 @@ export default function LandingFormPage() {
           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
             <KeyIcon size={16} style={{ color: '#4a5568' }} /> 
             <span style={{ fontSize: '14px', fontWeight: '600' }}>GitHub Personal Access Token</span>
+            {import.meta.env.VITE_GH_TOKEN ? (
+              <Tooltip
+                title={
+                  <span style={{ wordBreak: 'break-all' }}>
+                    등록된 토큰<br />
+                    {import.meta.env.VITE_GH_TOKEN as string}
+                  </span>
+                }
+              >
+                <Info size={15} style={{ color: '#8c8c8c', cursor: 'pointer' }} />
+              </Tooltip>
+            ) : null}
           </label>
           <input 
             id="github-token-input"
@@ -595,6 +610,63 @@ export default function LandingFormPage() {
               <Radio value="normal">일반형</Radio>
               <Radio value="selective">선택형</Radio>
             </Radio.Group>
+          </Form.Item>
+
+          {/* 설문지 상태 선택란 */}
+          <Form.Item
+            name="status"
+            label={
+              <Space size={4}>
+                <span>설문지 상태</span>
+                <Tooltip
+                  title="'모집완료'로 설정하면 상단 홍보 이미지까지는 그대로 노출되고, 그 아래 설문 내용 대신 '모집완료' 안내 문구가 표시됩니다."
+                >
+                  <Info size={15} style={{ color: '#8c8c8c', cursor: 'pointer', verticalAlign: 'middle' }} />
+                </Tooltip>
+              </Space>
+            }
+            initialValue="recruiting"
+            rules={[{ required: true, message: "설문지 상태는 필수 항목입니다." }]}
+          >
+            <Radio.Group>
+              <Radio value="recruiting">모집중</Radio>
+              <Radio value="closed">모집완료</Radio>
+            </Radio.Group>
+          </Form.Item>
+
+          {/* 모집완료 안내 문구 설정 (모집완료일 때만 노출) */}
+          <Form.Item
+            noStyle
+            shouldUpdate={(prev, cur) => prev.status !== cur.status}
+          >
+            {({ getFieldValue }) =>
+              getFieldValue("status") === "closed" ? (
+                <Card
+                  size="small"
+                  style={{ marginBottom: 24, backgroundColor: '#f6f6f6', border: '1px dashed #d9d9d9' }}
+                >
+                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#595959', marginBottom: 12 }}>
+                    📢 모집완료 안내 문구 설정
+                  </div>
+                  <Form.Item
+                    name="closed_title"
+                    label="모집완료 제목"
+                    rules={[{ required: true, message: "모집완료 제목은 필수입니다." }]}
+                    style={{ marginBottom: 12 }}
+                  >
+                    <Input placeholder="예: 모집이 완료되었습니다" />
+                  </Form.Item>
+                  <Form.Item
+                    name="closed_description"
+                    label="모집완료 안내 내용"
+                    rules={[{ required: true, message: "모집완료 안내 내용은 필수입니다." }]}
+                    style={{ marginBottom: 0 }}
+                  >
+                    <TextArea rows={3} placeholder="모집 종료 안내 문구를 입력하세요. 줄바꿈이 그대로 반영됩니다." />
+                  </Form.Item>
+                </Card>
+              ) : null
+            }
           </Form.Item>
 
           {/* 1. 상단 홍보 이미지 설정 (N개 등록 가능) */}

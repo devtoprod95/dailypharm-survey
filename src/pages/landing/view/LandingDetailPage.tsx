@@ -6,6 +6,9 @@ import { collection, doc, getDoc, addDoc, serverTimestamp } from "firebase/fires
 // --- 기본 fallback 설정 체계 보정 ---
 const INITIAL_CONFIG = {
   title: "팜스타트 대행 서비스 신청",
+  status: "recruiting",
+  closed_title: "모집이 완료되었습니다",
+  closed_description: "해당 설문 모집이 종료되어 더 이상 신청하실 수 없습니다. 많은 관심에 진심으로 감사드립니다.\n\n관련 문의 이메일 : pharmstart@dailypharm.com",
   subtitle: "✨ 현재 팜스타트 패키지 신청 시 39만원 이상 절감 혜택 제공 중!",
   show_title: true,
   show_subtitle: true,
@@ -232,6 +235,8 @@ export default function LandingDetailPage() {
 
   if (!landingData) return null;
 
+  const isClosed = landingData.status === "closed";
+
   const cacheBuster = landingData.updated_at
     ? (typeof landingData.updated_at.toMillis === 'function' ? landingData.updated_at.toMillis() : landingData.updated_at.seconds || new Date().getTime())
     : new Date().getTime();
@@ -270,6 +275,29 @@ export default function LandingDetailPage() {
         </div>
       )}
 
+      {/* 🔥 모집완료 상태: 상단 이미지 아래에 모집완료 안내만 노출 */}
+      {isClosed ? (
+        <section className="w-full max-w-[480px] py-16 px-6 box-border text-center flex flex-col items-center">
+          <div className="mx-auto mb-7 relative flex items-center justify-center w-24 h-24">
+            {/* 바깥쪽 은은한 링 */}
+            <span className="absolute inline-flex w-full h-full rounded-full bg-teal-400/15" />
+            <span className="absolute inline-flex w-[72px] h-[72px] rounded-full bg-teal-400/25" />
+            {/* 메인 그라데이션 배지 */}
+            <div className="relative flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-teal-400 to-emerald-500 shadow-lg shadow-emerald-500/30">
+              <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            </div>
+          </div>
+          <h2 className="text-[22px] font-black text-gray-900 mb-3 tracking-tight break-keep">
+            {landingData.closed_title}
+          </h2>
+          <p className="text-[15px] font-bold text-gray-500 break-keep leading-relaxed whitespace-pre-line">
+            {landingData.closed_description}
+          </p>
+        </section>
+      ) : (
+      <>
       {/* 2. 메인 서베이 입력 카드 폼 */}
       <section className="w-full max-w-[480px] py-6 px-4 box-border">
         <div className="w-full bg-white rounded-3xl border border-gray-200 shadow-xl px-5 py-10 sm:px-8 box-border overflow-hidden">
@@ -483,6 +511,8 @@ export default function LandingDetailPage() {
           )}
         </div>
       </section>
+      </>
+      )}
     </div>
   );
 }
