@@ -87,7 +87,7 @@ export default function LandingListPage() {
       width: 120,
       render: (val: string) =>
         val === "selective"
-          ? <Tag color="purple">선택형</Tag>
+          ? <Tag color="red">선택형</Tag>
           : <Tag color="blue">일반형</Tag>,
     },
     {

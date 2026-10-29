@@ -593,7 +593,29 @@ export default function LandingFormPage() {
           {/* 페이지 타입 선택 */}
           <Form.Item 
             name="page_type" 
-            label="페이지 타입" 
+            label={
+              <Space size={4}>
+                <span>페이지 타입</span>
+                <Tooltip
+                  styles={{ root: { maxWidth: 480 } }}
+                  title={
+                    <div style={{ fontSize: 14, lineHeight: 1.7, padding: '4px 2px' }}>
+                      설문에서 어떤 정보를 받을지 정합니다.
+                      <div style={{ marginTop: 8 }}>
+                        📝 <strong>일반형</strong><br />
+                        <span style={{ color: '#d9d9d9' }}>성함·연락처처럼 입력란에 직접 쓰는 정보만 받습니다. 간단한 신청/상담용입니다.</span>
+                      </div>
+                      <div style={{ marginTop: 8 }}>
+                        ☑️ <strong>선택형</strong><br />
+                        <span style={{ color: '#d9d9d9' }}>입력란에 더해, 보기 중에 고르는 질문(객관식)이나 자유롭게 답하는 질문(주관식)을 추가로 받을 수 있습니다. 설문·조사용에 적합합니다. (질문 답변은 엑셀 다운로드에 포함됩니다.)</span>
+                      </div>
+                    </div>
+                  }
+                >
+                  <Info size={16} style={{ color: '#8c8c8c', cursor: 'pointer', verticalAlign: 'middle' }} />
+                </Tooltip>
+              </Space>
+            }
             rules={[{ required: true }]}
           >
             <Radio.Group onChange={(e) => {
@@ -619,9 +641,22 @@ export default function LandingFormPage() {
               <Space size={4}>
                 <span>설문지 상태</span>
                 <Tooltip
-                  title="'모집완료'로 설정하면 상단 홍보 이미지까지는 그대로 노출되고, 그 아래 설문 내용 대신 '모집완료' 안내 문구가 표시됩니다."
+                  styles={{ root: { maxWidth: 480 } }}
+                  title={
+                    <div style={{ fontSize: 14, lineHeight: 1.7, padding: '4px 2px' }}>
+                      설문 참여를 받을지 여부를 정합니다.
+                      <div style={{ marginTop: 8 }}>
+                        ✅ <strong>모집중</strong><br />
+                        <span style={{ color: '#d9d9d9' }}>방문자가 설문에 참여하고 신청할 수 있습니다.</span>
+                      </div>
+                      <div style={{ marginTop: 8 }}>
+                        🚫 <strong>모집완료</strong><br />
+                        <span style={{ color: '#d9d9d9' }}>상단 홍보 이미지는 그대로 보이지만, 그 아래 설문 폼은 사라지고 "모집완료" 안내 문구가 표시됩니다. 더 이상 신청을 받지 않습니다.</span>
+                      </div>
+                    </div>
+                  }
                 >
-                  <Info size={15} style={{ color: '#8c8c8c', cursor: 'pointer', verticalAlign: 'middle' }} />
+                  <Info size={16} style={{ color: '#8c8c8c', cursor: 'pointer', verticalAlign: 'middle' }} />
                 </Tooltip>
               </Space>
             }
