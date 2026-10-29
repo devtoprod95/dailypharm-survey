@@ -27,6 +27,7 @@ const INITIAL_CONFIG = {
 export default function LandingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const isPreview = id === "preview";
 
   const [landingData, setLandingData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +43,39 @@ export default function LandingDetailPage() {
 
   useEffect(() => {
     const fetchLandingConfig = async () => {
+      // --- 미리보기 모드: Firestore 대신 sessionStorage의 폼 데이터 사용 ---
+      if (isPreview) {
+        setLoading(true);
+        try {
+          const raw = sessionStorage.getItem("landing_preview");
+          if (!raw) {
+            alert("미리보기 데이터가 없습니다. 편집 화면에서 다시 시도해 주세요.");
+            return;
+          }
+          const rawData = JSON.parse(raw);
+          const mergedData = {
+            ...INITIAL_CONFIG,
+            ...rawData,
+            fields: rawData.fields || {},
+            terms_privacy: { ...INITIAL_CONFIG.terms_privacy, ...rawData.terms_privacy },
+            terms_third_party: { ...INITIAL_CONFIG.terms_third_party, ...rawData.terms_third_party },
+          };
+          setLandingData(mergedData);
+
+          const initialFormValues: Record<string, string> = {};
+          Object.keys(mergedData.fields).forEach((key) => {
+            initialFormValues[key] = "";
+          });
+          setForm(initialFormValues);
+        } catch (err) {
+          console.error("미리보기 데이터 로드 오류:", err);
+          alert("미리보기 데이터를 불러오지 못했습니다.");
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
       if (!id) return;
       setLoading(true);
       try {
@@ -96,6 +130,10 @@ export default function LandingDetailPage() {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isPreview) {
+      alert("미리보기 모드에서는 제출할 수 없습니다.");
+      return;
+    }
     if (isSubmitting || !landingData) return;
 
     setErrorField(null);
@@ -244,6 +282,27 @@ export default function LandingDetailPage() {
   return (
     <div className="min-h-screen bg-white font-sans overflow-x-hidden w-full flex flex-col items-center touch-pan-y">
       
+      {isPreview && (
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 1000,
+            width: "100%",
+            background: "linear-gradient(135deg, #27ae60, #5b8def)",
+            color: "#fff",
+            textAlign: "center",
+            padding: "10px 16px",
+            fontSize: 14,
+            fontWeight: 700,
+            letterSpacing: "0.3px",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
+          }}
+        >
+          👁 미리보기 모드 — 실제로 저장/제출되지 않습니다
+        </div>
+      )}
+
       {/* 1. 상단 동적 배너 이미지 섹션 */}
       {landingData.show_top_image && (
         <div className="w-full max-w-[480px] flex flex-col bg-white">
@@ -253,17 +312,21 @@ export default function LandingDetailPage() {
               ? [landingData.top_image_url]
               : ['/assets/landing.png']
           ).map((imgUrl: string, idx: number) => {
-            const cleanImgSrc = imgUrl.startsWith("http") || imgUrl.startsWith("data:")
+            const isDataUrl = imgUrl.startsWith("data:");
+            const cleanImgSrc = imgUrl.startsWith("http") || isDataUrl
               ? imgUrl
               : `${import.meta.env.BASE_URL}${imgUrl.replace(/^\//, '')}`;
-            const separator = cleanImgSrc.includes('?') ? '&' : '?';
+            // data URL(base64)에는 캐시버스터를 붙이면 데이터가 깨지므로 제외
+            const finalSrc = isDataUrl
+              ? cleanImgSrc
+              : `${cleanImgSrc}${cleanImgSrc.includes('?') ? '&' : '?'}v=${cacheBuster}`;
             return (
               <section 
                 key={idx} 
                 className={`w-full bg-white transition-all duration-300 flex items-center justify-center ${idx === 0 && !isImageLoaded ? "min-h-[200px]" : "h-auto"}`}
               >
                 <img
-                  src={`${cleanImgSrc}${separator}v=${cacheBuster}`}
+                  src={finalSrc}
                   alt={`랜딩 이미지 ${idx + 1}`}
                   className="w-full h-auto block object-contain"
                   onLoad={idx === 0 ? () => setIsImageLoaded(true) : undefined}

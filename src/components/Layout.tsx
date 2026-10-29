@@ -76,7 +76,7 @@ const Layout = ({ children }: LayoutProps) => {
                 {showScrollTop && (
                     <button
                         onClick={scrollToTop}
-                        className="p-3 bg-white border border-gray-200 shadow-lg rounded-full text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-all duration-300"
+                        className="cursor-pointer p-3 bg-white border border-gray-200 shadow-lg rounded-full text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-all duration-300"
                     >
                         <ArrowUpIcon className="w-6 h-6" />
                     </button>
@@ -85,7 +85,7 @@ const Layout = ({ children }: LayoutProps) => {
                 {showScrollBottom && (
                     <button
                         onClick={scrollToBottom}
-                        className="p-3 bg-blue-600 shadow-lg rounded-full text-white hover:bg-blue-700 transition-all duration-300"
+                        className="cursor-pointer p-3 bg-blue-600 shadow-lg rounded-full text-white hover:bg-blue-700 transition-all duration-300"
                     >
                         <ArrowDownIcon className="w-6 h-6" />
                     </button>

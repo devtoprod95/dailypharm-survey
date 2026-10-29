@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { db, getGithubToken } from "../../../lib/firebase"; 
 import { Form, Input, Button, Card, Checkbox, Space, Typography, Divider, Row, Col, Upload, Image, Select, Radio, Tooltip } from "antd"; 
-import { ArrowLeft, Eye, Upload as UploadIcon, Plus, Trash2, GripVertical, Info } from "lucide-react"; 
+import { ArrowLeft, Upload as UploadIcon, Plus, Trash2, GripVertical, Info } from "lucide-react"; 
 import LoadingOverlay from "../../../components/LoadingOverlay";
 
 const { Title, Text } = Typography;
@@ -251,6 +251,64 @@ export default function LandingFormPage() {
       console.error("중복 체크 에러:", error);
       return Promise.reject(new Error("이름 중복 확인 중 오류가 발생했습니다."));
     }
+  };
+
+  // File → base64(data URL) 변환 (새 탭 미리보기는 blob URL 접근 불가하므로 data URL 사용)
+  const fileToDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+    });
+
+  // 현재 폼 값을 뷰 페이지가 이해하는 형태로 변환하여 미리보기를 새 탭으로 연다.
+  const handlePreview = async () => {
+    const values = form.getFieldsValue(true);
+
+    // 1. fields 배열 → 객체 변환 (뷰 페이지는 객체 형태를 기대)
+    const fieldsObject: Record<string, any> = {};
+    if (Array.isArray(values.fields)) {
+      values.fields.forEach((f: any, index: number) => {
+        const systemKey = f?.key ? String(f.key).trim() : `field_${index + 1}`;
+        fieldsObject[systemKey] = {
+          label: f?.label || "",
+          type: f?.type || "text",
+          show: f?.show !== undefined ? !!f.show : true,
+          required: f?.required !== undefined ? !!f.required : true,
+        };
+      });
+    }
+
+    // 2. 이미지 → data URL 목록 (새 업로드는 base64, 기존은 경로 그대로)
+    //    blob URL(previewUrl)은 새 탭에서 접근 불가하므로 사용하지 않는다.
+    const imageUrls: string[] = [];
+    for (const item of imageItems) {
+      if (item.rawFile) {
+        imageUrls.push(await fileToDataUrl(item.rawFile));
+      } else if (item.existingUrl) {
+        imageUrls.push(item.existingUrl);
+      }
+    }
+
+    // 3. 뷰 데이터 구성
+    const previewData = {
+      ...values,
+      fields: fieldsObject,
+      questions: values.page_type === "selective" ? (values.questions || []) : [],
+      images: imageUrls,
+      top_image_url: imageUrls[0] || "",
+    };
+
+    try {
+      sessionStorage.setItem("landing_preview", JSON.stringify(previewData));
+    } catch (e) {
+      alert("미리보기 데이터를 준비하지 못했습니다. (이미지 용량이 너무 클 수 있습니다)");
+      return;
+    }
+
+    const baseUrl = window.location.origin + window.location.pathname;
+    window.open(`${baseUrl}#/landing/view/preview`, "_blank");
   };
 
   // 3. 저장하기 파트 (수정: 히든 필드로 동기화된 f.key 유무를 판단하여 키 고정 및 다중 이미지 업로드 지원)
@@ -526,6 +584,86 @@ export default function LandingFormPage() {
         message={loadingMsg || (id ? "수정하는 중..." : "등록하는 중...")}
         description="이미지가 있으면 처리에 시간이 걸릴 수 있어요"
       />
+
+      {/* 플로팅 액션 버튼: 미리보기 + 저장 (컨텐츠 컨테이너(800px) 우측 끝에 고정, 화면을 따라다님) */}
+      <div
+        style={{
+          position: "fixed",
+          right: "max(20px, calc(50% - 380px))",
+          bottom: 32,
+          zIndex: 1500,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        {/* 미리보기 */}
+        <button
+          type="button"
+          onClick={handlePreview}
+          title="현재 입력한 내용으로 미리보기"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "14px 22px",
+            borderRadius: 999,
+            border: "none",
+            cursor: "pointer",
+            background: "linear-gradient(135deg, #27ae60, #5b8def)",
+            color: "#fff",
+            fontSize: 15,
+            fontWeight: 700,
+            boxShadow: "0 8px 24px rgba(39, 174, 96, 0.4)",
+            transition: "transform 0.15s ease, box-shadow 0.15s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-2px)";
+            e.currentTarget.style.boxShadow = "0 12px 30px rgba(39, 174, 96, 0.5)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "0 8px 24px rgba(39, 174, 96, 0.4)";
+          }}
+        >
+          미리보기
+        </button>
+
+        {/* 저장 (폼 제출 트리거) */}
+        <button
+          type="button"
+          onClick={() => form.submit()}
+          disabled={loading}
+          title={id ? "수정 내용 저장" : "등록"}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "14px 24px",
+            borderRadius: 999,
+            border: "none",
+            cursor: loading ? "not-allowed" : "pointer",
+            background: loading ? "#9ca3af" : "linear-gradient(135deg, #1e7e43, #27ae60)",
+            color: "#fff",
+            fontSize: 15,
+            fontWeight: 700,
+            boxShadow: "0 8px 24px rgba(30, 126, 67, 0.4)",
+            transition: "transform 0.15s ease, box-shadow 0.15s ease",
+          }}
+          onMouseEnter={(e) => {
+            if (loading) return;
+            e.currentTarget.style.transform = "translateY(-2px)";
+            e.currentTarget.style.boxShadow = "0 12px 30px rgba(30, 126, 67, 0.5)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "0 8px 24px rgba(30, 126, 67, 0.4)";
+          }}
+        >
+          {id ? "수정" : "등록"}
+        </button>
+      </div>
+
       <Button icon={<ArrowLeft size={14} />} onClick={() => navigate("/landing")} style={{ marginBottom: 20 }}>목록으로</Button>
       
       <Card variant="borderless" className="shadow-sm">
