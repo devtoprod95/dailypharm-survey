@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs
 import { db, getGithubToken } from "../../../lib/firebase"; 
 import { Form, Input, Button, Card, Checkbox, Space, Typography, Divider, Row, Col, Upload, Image, Select, Radio, Tooltip } from "antd"; 
 import { ArrowLeft, Eye, Upload as UploadIcon, Plus, Trash2, GripVertical, Info } from "lucide-react"; 
+import LoadingOverlay from "../../../components/LoadingOverlay";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -69,6 +70,7 @@ export default function LandingFormPage() {
   const navigate = useNavigate();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState("");
   const [imgError, setImgError] = useState(false); 
   const [timestamp, setTimestamp] = useState(new Date().getTime()); 
   const [imageItems, setImageItems] = useState<ImageItem[]>([]);
@@ -328,8 +330,10 @@ export default function LandingFormPage() {
     }
   
     setLoading(true);
+    setLoadingMsg(isEditMode ? "수정하는 중..." : "등록하는 중...");
     try {
       if (hasNewUploads) {
+        setLoadingMsg("이미지를 업로드하는 중...");
         const getBase64 = (file: File): Promise<string> => {
           return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -483,6 +487,7 @@ export default function LandingFormPage() {
         updated_at: serverTimestamp(),
       };
  
+      setLoadingMsg(isEditMode ? "변경 내용을 저장하는 중..." : "설문지를 등록하는 중...");
       await setDoc(doc(db, "survey_list", targetDocId), savePayload);
   
       let alertText = isEditMode ? "수정되었습니다." : "등록되었습니다.";
@@ -497,6 +502,7 @@ export default function LandingFormPage() {
       alert(e.message || "저장 실패");
     } finally {
       setLoading(false);
+      setLoadingMsg("");
     }
   };
 
@@ -515,6 +521,11 @@ export default function LandingFormPage() {
 
   return (
     <div style={{ padding: "40px 20px", maxWidth: "800px", margin: "0 auto" }}>
+      <LoadingOverlay
+        open={loading}
+        message={loadingMsg || (id ? "수정하는 중..." : "등록하는 중...")}
+        description="이미지가 있으면 처리에 시간이 걸릴 수 있어요"
+      />
       <Button icon={<ArrowLeft size={14} />} onClick={() => navigate("/landing")} style={{ marginBottom: 20 }}>목록으로</Button>
       
       <Card variant="borderless" className="shadow-sm">

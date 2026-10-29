@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PhotoIcon, ArrowUpTrayIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 import { getGithubToken } from '../lib/firebase';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function Deploy() {
   const [file, setFile] = useState<File | null>(null);
@@ -64,6 +65,11 @@ export default function Deploy() {
   return (
     /* flex와 min-h-screen을 추가하여 화면 정중앙에 배치 */
     <div className="min-h-screen flex items-center justify-center p-8">
+      <LoadingOverlay
+        open={status === 'loading'}
+        message="이미지를 업로드하는 중..."
+        description="서버에 반영 중입니다. 잠시만 기다려 주세요"
+      />
       <div className="max-w-2xl w-full mx-auto">
         <header className="mb-8 text-center"> {/* 헤더도 중앙 정렬이 어울리도록 text-center 추가 */}
           <h1 className="text-2xl font-bold text-gray-800">배포 관리 시스템</h1>

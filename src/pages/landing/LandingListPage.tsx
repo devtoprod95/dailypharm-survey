@@ -5,6 +5,7 @@ import { db } from "../../lib/firebase";
 import { deleteImagesFromRepo } from "../../lib/github";
 import { Table, Button, Space, Typography, Card, Tag } from "antd"; 
 import { Plus, Trash2, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react"; 
+import LoadingOverlay from "../../components/LoadingOverlay";
 
 const { Title, Text } = Typography;
 
@@ -15,6 +16,8 @@ export default function LandingListPage() {
   const [list, setList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteMsg, setDeleteMsg] = useState("삭제하는 중...");
 
   const fetchList = async () => {
     setLoading(true);
@@ -34,19 +37,24 @@ export default function LandingListPage() {
   const handleDelete = async (id: string, name: string) => {
     if (!window.confirm("정말 삭제하시겠습니까? 등록된 이미지도 함께 삭제됩니다.")) return;
 
+    setDeleting(true);
     try {
       // 1. GitHub 저장소에서 해당 설문지의 모든 이미지 삭제 (설문지명 접두어 기준)
       //    best-effort: 실패해도 데이터 삭제는 진행
+      setDeleteMsg("이미지를 삭제하는 중...");
       try {
         await deleteImagesFromRepo(name);
       } catch (imgErr) {
         console.error("이미지 삭제 실패:", imgErr);
+        setDeleting(false);
         if (!window.confirm("이미지 삭제에 실패했습니다. 설문 데이터만 삭제를 계속할까요?")) {
           return;
         }
+        setDeleting(true);
       }
 
       // 2. 응답 컬렉션 삭제
+      setDeleteMsg("응답 데이터를 삭제하는 중...");
       const replyCollectionRef = collection(db, name);
       const replySnapshot = await getDocs(replyCollectionRef);
       
@@ -57,6 +65,7 @@ export default function LandingListPage() {
       await batch.commit();
 
       // 3. survey_list 문서 삭제
+      setDeleteMsg("설문지를 삭제하는 중...");
       await deleteDoc(doc(db, "survey_list", id));
 
       alert("삭제되었습니다."); 
@@ -64,6 +73,9 @@ export default function LandingListPage() {
       fetchList();
     } catch (e) {
       alert("삭제 실패"); 
+    } finally {
+      setDeleting(false);
+      setDeleteMsg("삭제하는 중...");
     }
   };
 
@@ -151,6 +163,7 @@ export default function LandingListPage() {
 
   return (
     <div style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto" }}>
+      <LoadingOverlay open={deleting} message={deleteMsg} description="잠시만 기다려 주세요" />
       <Card variant="borderless" className="shadow-sm">
         <Space style={{ justifyContent: "space-between", width: "100%", marginBottom: 20 }}>
           <Title level={3} style={{ margin: 0 }}>랜딩 관리</Title>
