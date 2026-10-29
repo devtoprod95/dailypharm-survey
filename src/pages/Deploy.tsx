@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { PhotoIcon, ArrowUpTrayIcon, CheckCircleIcon, ExclamationCircleIcon, KeyIcon } from '@heroicons/react/24/outline';
+import { PhotoIcon, ArrowUpTrayIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
+import { getGithubToken } from '../lib/firebase';
 
 export default function Deploy() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [token, setToken] = useState('');
 
   const REPO_OWNER = "devtoprod95";
   const REPO_NAME = "dailypharm-survey";
@@ -15,12 +15,12 @@ export default function Deploy() {
   };
 
   const handlePush = async () => {
-    if (!token) return alert("GitHub 토큰을 입력해주세요.");
     if (!file) return alert("교체할 이미지를 선택해주세요.");
     
     setStatus('loading');
 
     try {
+      const githubToken = await getGithubToken();
       let sha = null;
 
       // 2. 파일을 Base64로 인코딩
@@ -35,7 +35,7 @@ export default function Deploy() {
           {
             method: 'PUT',
             headers: {
-              Authorization: `token ${token}`,
+              Authorization: `token ${githubToken}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -72,21 +72,6 @@ export default function Deploy() {
         
         <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 space-y-6">
           
-          {/* 토큰 입력 섹션 */}
-          <div>
-            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-              <KeyIcon className="w-4 h-4" /> GitHub Personal Access Token
-            </label>
-            <input 
-              type="password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="ghp_로 시작하는 토큰을 붙여넣으세요"
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
-            />
-            <p className="mt-1 text-[11px] text-gray-400 font-medium">* 토큰은 어디에도 저장되지 않으며 브라우저를 새로고침하면 삭제됩니다.</p>
-          </div>
-
           {/* 이미지 업로드 섹션 */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2 text-left">교체할 이미지</label>

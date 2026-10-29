@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "../../../lib/firebase"; 
+import { db, getGithubToken } from "../../../lib/firebase"; 
 import { Form, Input, Button, Card, Checkbox, Space, Typography, Divider, Row, Col, Upload, Image, Select, Radio, Tooltip } from "antd"; 
-import { ArrowLeft, Eye, Upload as UploadIcon, Key as KeyIcon, AlertCircle, Plus, Trash2, GripVertical, Info } from "lucide-react"; 
+import { ArrowLeft, Eye, Upload as UploadIcon, Plus, Trash2, GripVertical, Info } from "lucide-react"; 
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -71,7 +71,6 @@ export default function LandingFormPage() {
   const [loading, setLoading] = useState(false);
   const [imgError, setImgError] = useState(false); 
   const [timestamp, setTimestamp] = useState(new Date().getTime()); 
-  const [token, setToken] = useState(""); 
   const [imageItems, setImageItems] = useState<ImageItem[]>([]);
   const [currentName, setCurrentName] = useState("");
   const pageType = Form.useWatch("page_type", form) || "normal";
@@ -285,18 +284,7 @@ export default function LandingFormPage() {
     }
 
     const hasNewUploads = imageItems.some(item => item.rawFile !== null);
-    const isGitHubApiRequired = hasNewUploads;
 
-    if (isGitHubApiRequired && !token) {
-      alert(isEditMode ? "새로운 이미지를 추가/변경하시려면 GitHub 토큰을 입력해 주세요." : "신규 생성 시에는 이미지 업로드를 위해 GitHub 토큰이 필수입니다.");
-      const tokenInput = document.getElementById("github-token-input");
-      if (tokenInput) {
-        tokenInput.scrollIntoView({ behavior: "smooth", block: "center" });
-        tokenInput.focus();
-      }
-      return;
-    }
-  
     // 3. 저장하기 눌렀을 때 선택형 경우 검사 로직
     if (values.page_type === "selective") {
       const qs = values.questions || [];
@@ -351,8 +339,10 @@ export default function LandingFormPage() {
           });
         };
 
+        const githubToken = await getGithubToken();
+
         const headers = {
-          Authorization: `token ${token}`,
+          Authorization: `token ${githubToken}`,
           'Content-Type': 'application/json',
         };
 
@@ -495,8 +485,10 @@ export default function LandingFormPage() {
  
       await setDoc(doc(db, "survey_list", targetDocId), savePayload);
   
-      let alertText = isGitHubApiRequired ? "저장되었습니다." : "수정되었습니다.";
-      alertText += " 이미지 처리는 일정 시간이 소요됩니다.";
+      let alertText = isEditMode ? "수정되었습니다." : "생성되었습니다.";
+      if (hasNewUploads) {
+        alertText += " 이미지 처리는 일정 시간이 소요됩니다.";
+      }
       alert(alertText);
  
       navigate("/landing");
@@ -526,44 +518,8 @@ export default function LandingFormPage() {
       <Button icon={<ArrowLeft size={14} />} onClick={() => navigate("/landing")} style={{ marginBottom: 20 }}>목록으로</Button>
       
       <Card variant="borderless" className="shadow-sm">
-        <Title level={3}>{id ? "상세 내용 수정" : "새 랜딩 페이지 추가"}</Title>
+        <Title level={3}>{id ? "상세 내용 수정" : "새 랜딩 페이지 등록"}</Title>
         <Divider style={{ margin: "12px 0 24px 0" }} />
-
-        {/* GitHub Token 입력란 */}
-        <div style={{ marginBottom: "28px", padding: "16px", backgroundColor: "#f4f7fa", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-            <KeyIcon size={16} style={{ color: '#4a5568' }} /> 
-            <span style={{ fontSize: '14px', fontWeight: '600' }}>GitHub Personal Access Token</span>
-            {import.meta.env.VITE_GH_TOKEN ? (
-              <Tooltip
-                title={
-                  <span style={{ wordBreak: 'break-all' }}>
-                    등록된 토큰<br />
-                    {import.meta.env.VITE_GH_TOKEN as string}
-                  </span>
-                }
-              >
-                <Info size={15} style={{ color: '#8c8c8c', cursor: 'pointer' }} />
-              </Tooltip>
-            ) : null}
-          </label>
-          <input 
-            id="github-token-input"
-            type="password"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="ghp_ 로 시작하는 토큰을 입력하세요"
-            style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none', fontSize: '14px' }}
-          />
-          <div style={{ marginTop: '10px', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-            <AlertCircle size={14} style={{ color: '#64748b', marginTop: '2px' }} />
-            <div style={{ fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>
-              <strong style={{ color: '#334155' }}>💡 언제 입력해야 하나요?</strong><br />
-              • <span style={{ color: '#2563eb', fontWeight: '600' }}>새로 만들 때</span> : 이미지 전송이 필요하므로 <strong>필수 입력</strong>입니다.<br />
-              • <span style={{ color: '#16a34a', fontWeight: '600' }}>이미지를 수정할 때</span> <strong>(이미지 교체 안 하면 비워두셔도 됩니다)</strong>
-            </div>
-          </div>
-        </div>
 
         <Form 
           form={form} 
@@ -1218,7 +1174,7 @@ export default function LandingFormPage() {
               목록으로
             </Button>
 
-            {/* 저장하기 버튼 (50%) */}
+            {/* 등록/수정 버튼 (50%) */}
             <Button 
               type="primary" 
               htmlType="submit" 
@@ -1232,7 +1188,7 @@ export default function LandingFormPage() {
                 fontWeight: 'bold' 
               }}
             >
-              저장하기
+              {id ? "수정" : "등록"}
             </Button>
           </div>
 
