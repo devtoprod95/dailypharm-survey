@@ -485,7 +485,7 @@ export default function LandingFormPage() {
  
       await setDoc(doc(db, "survey_list", targetDocId), savePayload);
   
-      let alertText = isEditMode ? "수정되었습니다." : "생성되었습니다.";
+      let alertText = isEditMode ? "수정되었습니다." : "등록되었습니다.";
       if (hasNewUploads) {
         alertText += " 이미지 처리는 일정 시간이 소요됩니다.";
       }
