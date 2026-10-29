@@ -59,6 +59,8 @@ function ExcelPageContent() {
   const [data, setData] = useState<SurveyData[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
+  // 🔥 부분검색(클라이언트 필터링) 모드에서 사용하는 전체 매칭 결과
+  const [clientMatches, setClientMatches] = useState<SurveyData[]>([]);
   const [dynamicKeys, setDynamicKeys] = useState<string[]>([]);
   const [surveyList, setSurveyList] = useState<SurveyListData[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -202,6 +204,52 @@ function ExcelPageContent() {
     }
   }, [setSearchParams, msg]);
 
+  // ─── 부분검색(클라이언트 필터링) 조회 ───────────────────────────
+  // Firestore는 contains 검색을 지원하지 않으므로, 전체 로드 후 클라이언트에서 부분 일치 필터링
+  const fetchClientSearch = useCallback(async (
+    col: string,
+    type: string,
+    text: string,
+    page: number,
+    cached?: SurveyData[]
+  ) => {
+    if (!col) return;
+    setLoading(true);
+    try {
+      let matches = cached;
+
+      if (!matches) {
+        const snap = await getDocs(query(collection(db, col), orderBy("created_at", "desc")));
+        const allRows = snap.docs.map(d => ({ id: d.id, ...(d.data() as object) })) as SurveyData[];
+        const keyword = text.trim().toLowerCase();
+        matches = allRows.filter(row => {
+          const val = row[type];
+          return val !== undefined && val !== null && String(val).toLowerCase().includes(keyword);
+        });
+        setClientMatches(matches);
+      }
+
+      setTotal(matches.length);
+
+      // 동적 키 구성
+      const keysSet = new Set<string>();
+      matches.forEach(r => Object.keys(r).forEach(k => { if (!EXCLUDED_KEYS.includes(k)) keysSet.add(k); }));
+      setDynamicKeys(sortDynamicKeys(keysSet));
+
+      // 클라이언트 페이지네이션 slice
+      const start = (page - 1) * PAGE_SIZE;
+      setData(matches.slice(start, start + PAGE_SIZE));
+    } catch (e: any) {
+      console.error("Firebase Error:", e);
+      msg.error("검색 데이터 로드 실패");
+    } finally {
+      setLoading(false);
+    }
+  }, [msg]);
+
+  // 🔥 부분검색 캐시 재사용을 위한 마지막 검색 시그니처 추적
+  const lastSearchSigRef = useRef<string>("");
+
   // ─── URL 변경 시 재조회 ──────────────────────────────────────────
   useEffect(() => {
     const col = searchParams.get("targetCollection") || "";
@@ -217,10 +265,24 @@ function ExcelPageContent() {
 
     if (!col) { setLoading(false); return; }
 
-    fetchTotalCount(col, type, text);
-
-    const direction = (page > 1 && fId) ? "stay" : "first";
-    fetchData(direction, col, type, text, fId, lId, page);
+    if (text.trim()) {
+      // 🔥 검색어가 있으면 부분검색(클라이언트 필터링 + 클라이언트 페이지네이션)
+      const sig = `${col}|${type}|${text.trim()}`;
+      if (sig === lastSearchSigRef.current && clientMatches.length > 0) {
+        // 페이지만 바뀐 경우: 캐시 재사용(재조회 없이 slice)
+        fetchClientSearch(col, type, text, page, clientMatches);
+      } else {
+        lastSearchSigRef.current = sig;
+        fetchClientSearch(col, type, text, page);
+      }
+    } else {
+      // 검색어가 없으면 기존 서버 커서 페이지네이션
+      lastSearchSigRef.current = "";
+      setClientMatches([]);
+      fetchTotalCount(col, type, text);
+      const direction = (page > 1 && fId) ? "stay" : "first";
+      fetchData(direction, col, type, text, fId, lId, page);
+    }
   }, [
     searchParams.get("targetCollection"),
     searchParams.get("text"),
@@ -299,11 +361,17 @@ function ExcelPageContent() {
     if (!selectedCollectionName) return;
     setLoading(true);
     try {
-      const constraints: any[] = searchText.trim()
-        ? [where(searchType, "==", searchText.trim()), orderBy(searchType)]
-        : [orderBy("created_at", "desc")];
-      const snap = await getDocs(query(collection(db, selectedCollectionName), ...constraints));
-      const allData = snap.docs.map(d => ({ id: d.id, ...(d.data() as object) })) as SurveyData[];
+      // 🔥 부분검색과 동일하게: 전체 로드 후 검색어가 있으면 클라이언트에서 contains 필터링
+      const snap = await getDocs(query(collection(db, selectedCollectionName), orderBy("created_at", "desc")));
+      let allData = snap.docs.map(d => ({ id: d.id, ...(d.data() as object) })) as SurveyData[];
+
+      if (searchText.trim()) {
+        const keyword = searchText.trim().toLowerCase();
+        allData = allData.filter(row => {
+          const val = row[searchType];
+          return val !== undefined && val !== null && String(val).toLowerCase().includes(keyword);
+        });
+      }
 
       const keysSet = new Set<string>();
       allData.forEach(r => Object.keys(r).forEach(k => { if (!EXCLUDED_KEYS.includes(k)) keysSet.add(k); }));
@@ -378,7 +446,7 @@ function ExcelPageContent() {
           {/* 헤더 */}
           <Space style={{ justifyContent: "space-between", width: "100%" }}>
             <div>
-              <Title level={3} style={{ margin: 0 }}>상담 신청 관리</Title>
+              <Title level={3} style={{ margin: 0 }}>설문 리스트</Title>
               <Text type="secondary">Total <Text strong>{total}</Text> records</Text>
             </div>
             <Space wrap>
@@ -426,7 +494,7 @@ function ExcelPageContent() {
               {PRIORITY_KEYS.map(k => <Option key={k} value={k}>{k}</Option>)}
             </Select>
             <Input
-              placeholder="완전 일치 검색"
+              placeholder="부분 검색 (포함되는 값 검색)"
               value={localSearchText}
               onChange={e => setLocalSearchText(e.target.value)}
               onPressEnter={handleSearch}
@@ -453,12 +521,24 @@ function ExcelPageContent() {
           {/* 페이지네이션 */}
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 20 }}>
             <Button icon={<ChevronLeft size={16} />} disabled={currentPage === 1 || loading}
-              onClick={() => fetchData("prev", selectedCollectionName, searchType, searchText, firstId, lastId, currentPage)}>
+              onClick={() => {
+                if (searchText.trim()) {
+                  setSearchParams({ targetCollection: selectedCollectionName, page: String(currentPage - 1), type: searchType, text: searchText });
+                } else {
+                  fetchData("prev", selectedCollectionName, searchType, searchText, firstId, lastId, currentPage);
+                }
+              }}>
               이전
             </Button>
             <Text strong>{currentPage} / {totalPages}</Text>
             <Button disabled={currentPage >= totalPages || loading}
-              onClick={() => fetchData("next", selectedCollectionName, searchType, searchText, firstId, lastId, currentPage)}>
+              onClick={() => {
+                if (searchText.trim()) {
+                  setSearchParams({ targetCollection: selectedCollectionName, page: String(currentPage + 1), type: searchType, text: searchText });
+                } else {
+                  fetchData("next", selectedCollectionName, searchType, searchText, firstId, lastId, currentPage);
+                }
+              }}>
               다음 <ChevronRight size={16} style={{ marginLeft: 4 }} />
             </Button>
           </div>
