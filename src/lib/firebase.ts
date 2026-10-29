@@ -21,7 +21,7 @@ export const analytics = typeof window !== "undefined" ? getAnalytics(app) : nul
 
 /**
  * Firestore의 gh_token 컬렉션(문서 1개)에서 token 필드를 불러온다.
- * 더 이상 사용자 입력/환경변수(VITE_GH_TOKEN)에 의존하지 않는다.
+ * 더 이상 사용자 입력이나 빌드 환경변수에 의존하지 않는다.
  * @throws 토큰이 없거나 조회에 실패하면 에러를 던진다.
  */
 export async function getGithubToken(): Promise<string> {
