@@ -4,6 +4,7 @@ import {
     RocketLaunchIcon, 
     TableCellsIcon, 
     BeakerIcon,
+    ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 
 export interface PageConfig {
@@ -35,6 +36,13 @@ export const PAGE_LIST: PageConfig[] = [
         path: "/excel-down",
         description: "설문 데이터 확인 및 엑셀 추출",
         icon: <TableCellsIcon className="w-6 h-6" />,
+        showInHeader: true
+    },
+    {
+        title: "건의함",
+        path: "/feature-request",
+        description: "기능 요청, 버그 신고, 문의 등 의견 작성",
+        icon: <ChatBubbleLeftRightIcon className="w-6 h-6" />,
         showInHeader: true
     },
     {

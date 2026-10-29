@@ -5,6 +5,7 @@ import FirebaseTest from './pages/FirebaseTest.tsx'
 import './index.css'
 import AdminExcelPage from './pages/AdminExcelPage.tsx'
 import Deploy from './pages/Deploy.tsx'
+import FeatureRequestPage from './pages/FeatureRequestPage.tsx'
 
 import { PAGE_LIST } from './config/pages';
 import Layout from './components/Layout.tsx'
@@ -29,7 +30,8 @@ const router = createHashRouter([
           {
             page.path === "/landing" ? <LandingListPage /> :
             page.path === "/deploy" ? <Deploy /> :
-            page.path === "/excel-down" ? <AdminExcelPage /> : <FirebaseTest />
+            page.path === "/excel-down" ? <AdminExcelPage /> :
+            page.path === "/feature-request" ? <FeatureRequestPage /> : <FirebaseTest />
           }
         </Layout>
       )
