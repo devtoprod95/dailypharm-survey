@@ -667,7 +667,7 @@ export default function LandingFormPage() {
       <Button icon={<ArrowLeft size={14} />} onClick={() => navigate("/landing")} style={{ marginBottom: 20 }}>목록으로</Button>
       
       <Card variant="borderless" className="shadow-sm">
-        <Title level={3}>{id ? "상세 내용 수정" : "새 랜딩 페이지 등록"}</Title>
+        <Title level={3}>{id ? "랜딩 페이지 수정" : "랜딩 페이지 등록"}</Title>
         <Divider style={{ margin: "12px 0 24px 0" }} />
 
         <Form 

@@ -168,7 +168,7 @@ export default function LandingListPage() {
         <Space style={{ justifyContent: "space-between", width: "100%", marginBottom: 20 }}>
           <Title level={3} style={{ margin: 0 }}>랜딩 관리</Title>
           <Button type="primary" icon={<Plus size={14} />} onClick={() => navigate("/landing/store")} style={{ backgroundColor: '#27ae60', borderColor: '#27ae60' }}>
-            새 랜딩 페이지 등록
+            랜딩 페이지 등록
           </Button>
         </Space>
 
