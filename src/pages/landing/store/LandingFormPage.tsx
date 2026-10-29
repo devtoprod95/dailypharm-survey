@@ -598,36 +598,45 @@ export default function LandingFormPage() {
         }}
       >
         {/* 미리보기 */}
-        <button
-          type="button"
-          onClick={handlePreview}
-          title="현재 입력한 내용으로 미리보기"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "14px 22px",
-            borderRadius: 999,
-            border: "none",
-            cursor: "pointer",
-            background: "linear-gradient(135deg, #27ae60, #5b8def)",
-            color: "#fff",
-            fontSize: 15,
-            fontWeight: 700,
-            boxShadow: "0 8px 24px rgba(39, 174, 96, 0.4)",
-            transition: "transform 0.15s ease, box-shadow 0.15s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translateY(-2px)";
-            e.currentTarget.style.boxShadow = "0 12px 30px rgba(39, 174, 96, 0.5)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "translateY(0)";
-            e.currentTarget.style.boxShadow = "0 8px 24px rgba(39, 174, 96, 0.4)";
-          }}
+        <Tooltip
+          title={
+            <span style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+              현재 입력한 내용 그대로 새 탭에서 미리 봅니다.
+              저장되지 않으니 자유롭게 확인하세요.
+            </span>
+          }
+          placement="top"
         >
-          미리보기
-        </button>
+          <button
+            type="button"
+            onClick={handlePreview}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "14px 22px",
+              borderRadius: 999,
+              border: "none",
+              cursor: "pointer",
+              background: "linear-gradient(135deg, #27ae60, #5b8def)",
+              color: "#fff",
+              fontSize: 15,
+              fontWeight: 700,
+              boxShadow: "0 8px 24px rgba(39, 174, 96, 0.4)",
+              transition: "transform 0.15s ease, box-shadow 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow = "0 12px 30px rgba(39, 174, 96, 0.5)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "0 8px 24px rgba(39, 174, 96, 0.4)";
+            }}
+          >
+            미리보기
+          </button>
+        </Tooltip>
 
         {/* 저장 (폼 제출 트리거) */}
         <button

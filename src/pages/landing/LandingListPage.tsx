@@ -98,7 +98,7 @@ export default function LandingListPage() {
       key: "name",
       width: 260,
       render: (val: string, record: any) => (
-        <Space direction="vertical" size={4}>
+        <Space orientation="vertical" size={4}>
           <span>{val}</span>
           {record.status === "closed"
             ? <Tag color="default" style={{ margin: 0 }}>모집완료</Tag>
@@ -127,7 +127,7 @@ export default function LandingListPage() {
       key: "dates",
       width: 260,
       render: (_: any, record: any) => (
-        <Space direction="vertical" size={2} style={{ whiteSpace: 'nowrap' }}>
+        <Space orientation="vertical" size={2} style={{ whiteSpace: 'nowrap' }}>
           <span>
             생성 : {record.created_at?.toDate()?.toLocaleString() || "-"}
           </span>
