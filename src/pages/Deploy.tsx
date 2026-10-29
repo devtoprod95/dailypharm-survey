@@ -39,7 +39,7 @@ export default function Deploy() {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              message: "upload: 새로운 랜딩 이미지 대기열 추가",
+              message: "[이미지 교체] 랜딩 페이지 대표 이미지 교체 (배포 대기)",
               content: base64Content,
               sha: sha, 
               branch: "main"

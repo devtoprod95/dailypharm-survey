@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { collection, getDocs, deleteDoc, doc, query, orderBy, writeBatch } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { deleteImagesFromRepo } from "../../lib/github";
 import { Table, Button, Space, Typography, Card, Tag } from "antd"; 
 import { Plus, Trash2, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react"; 
 
@@ -31,9 +32,21 @@ export default function LandingListPage() {
   useEffect(() => { fetchList(); }, []);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm("정말 삭제하시겠습니까?")) return;
+    if (!window.confirm("정말 삭제하시겠습니까? 등록된 이미지도 함께 삭제됩니다.")) return;
 
     try {
+      // 1. GitHub 저장소에서 해당 설문지의 모든 이미지 삭제 (설문지명 접두어 기준)
+      //    best-effort: 실패해도 데이터 삭제는 진행
+      try {
+        await deleteImagesFromRepo(name);
+      } catch (imgErr) {
+        console.error("이미지 삭제 실패:", imgErr);
+        if (!window.confirm("이미지 삭제에 실패했습니다. 설문 데이터만 삭제를 계속할까요?")) {
+          return;
+        }
+      }
+
+      // 2. 응답 컬렉션 삭제
       const replyCollectionRef = collection(db, name);
       const replySnapshot = await getDocs(replyCollectionRef);
       
@@ -43,6 +56,7 @@ export default function LandingListPage() {
       });
       await batch.commit();
 
+      // 3. survey_list 문서 삭제
       await deleteDoc(doc(db, "survey_list", id));
 
       alert("삭제되었습니다."); 

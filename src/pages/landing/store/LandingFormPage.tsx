@@ -416,7 +416,7 @@ export default function LandingFormPage() {
             method: 'POST',
             headers,
             body: JSON.stringify({
-              message: `upload: ${fieldNameValue} 이미지 ${treeNodes.length}개 대기열 추가`,
+              message: `[이미지 업로드] 설문지 '${fieldNameValue}' ${isEditMode ? "수정" : "신규 등록"} - 이미지 ${treeNodes.length}개 업로드 (배포 대기)`,
               tree: newTreeSha,
               parents: [parentCommitSha],
             }),

@@ -21,29 +21,35 @@ jobs:
         run: |
           # 1. public/assets/ 폴더 내에 _pending.png로 끝나는 파일이 하나라도 있는지 확인
           if ls public/assets/*_pending.png 1> /dev/null 2>&1; then
-            echo "New pending images found. Preparing deployment..."
-            
+            echo "대기 중인 이미지(_pending.png)를 발견했습니다. 실제 서비스 이미지로 전환을 시작합니다..."
+
+            processed_files=""
+            processed_count=0
+
             # 2. _pending.png 파일들을 하나씩 돌면서 로테이션 처리
             for pending_file in public/assets/*_pending.png; do
-              # 파일 경로에서 실제 파일명 추출 (예: public/assets/survey_pharm_start_0_pending.png)
-              echo "Processing: $pending_file"
-              
+              echo "처리 중: $pending_file"
+
               # _pending.png를 제거하여 실 서비스용 파일명 정의 (예: public/assets/survey_pharm_start_0.png)
               real_file="${pending_file%_pending.png}.png"
-              
+
               # 대기 중인 _pending 파일을 실 서비스용 파일명으로 변경
               mv "$pending_file" "$real_file"
-              echo "Activated: $real_file"
+              echo "활성화 완료: $real_file"
+
+              # 커밋 메시지에 넣을 파일명 수집 (경로 제외)
+              processed_files="${processed_files} $(basename "$real_file")"
+              processed_count=$((processed_count + 1))
             done
-            
+
             # 3. 변경 사항을 다시 저장소에 커밋 및 푸시 (빌드 전 파일 정리)
             git config --global user.name "github-actions[bot]"
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
             git add public/assets/
-            git commit -m "chore: rotate dynamic landing images [skip ci]" || echo "No changes to commit"
+            git commit -m "[이미지 활성화] 대기 중인 이미지 ${processed_count}개를 서비스용으로 전환 [skip ci]" -m "전환된 파일:${processed_files}" || echo "커밋할 변경 사항이 없습니다"
             git push origin main
           else
-            echo "No pending images found. Skipping rotation."
+            echo "대기 중인 이미지가 없습니다. 이미지 전환 단계를 건너뜁니다."
           fi
 
       # --- 기존 배포 로직 ---
