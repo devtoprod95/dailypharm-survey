@@ -9,6 +9,7 @@ import {
 } from "antd";
 import { Send, RefreshCw, MessageSquarePlus, Trash2 } from "lucide-react";
 import RichTextEditor, { sanitizeHtml, isHtmlEmpty } from "../components/RichTextEditor";
+import { sendFeatureRequestNotice } from "../lib/telegram";
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -104,11 +105,13 @@ function FeatureRequestContent() {
     setSubmitting(true);
     try {
       const ip = await fetchPublicIp();
+      const safeContent = sanitizeHtml(values.content || "");
+      const author = (values.author || "").trim() || "익명";
       await addDoc(collection(db, COLLECTION), {
         type: values.type,
         title: values.title.trim(),
-        author: (values.author || "").trim() || "익명",
-        content: sanitizeHtml(values.content || ""),
+        author,
+        content: safeContent,
         client_id: clientId,
         ip,
         created_at: serverTimestamp(),
@@ -116,6 +119,14 @@ function FeatureRequestContent() {
       msg.success("건의가 등록되었습니다. 감사합니다!");
       form.resetFields();
       fetchList();
+
+      // 텔레그램 알림 전송 (실패해도 등록 흐름에는 영향 없음)
+      void sendFeatureRequestNotice({
+        typeLabel: REQUEST_TYPES[values.type]?.label || values.type,
+        title: values.title.trim(),
+        author,
+        contentHtml: safeContent,
+      });
     } catch (e) {
       console.error(e);
       msg.error("등록에 실패했습니다. 잠시 후 다시 시도해주세요.");
