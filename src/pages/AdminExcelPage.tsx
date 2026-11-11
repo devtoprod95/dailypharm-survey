@@ -443,12 +443,12 @@ function ExcelPageContent() {
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
   return (
-    <div style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto" }}>
+    <div className="page-container" style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto" }}>
       <Card variant="borderless" className="shadow-sm">
         <Space orientation="vertical" size="large" style={{ width: "100%" }}>
 
           {/* 헤더 */}
-          <Space style={{ justifyContent: "space-between", width: "100%" }}>
+          <Space wrap style={{ justifyContent: "space-between", width: "100%" }}>
             <div>
               <Title level={3} style={{ margin: 0 }}>설문 리스트</Title>
               <Text type="secondary">Total <Text strong>{total}</Text> records</Text>

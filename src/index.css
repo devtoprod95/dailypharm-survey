@@ -60,3 +60,15 @@ body {
 .fr-content em { font-style: italic; }
 .ProseMirror u,
 .fr-content u { text-decoration: underline; }
+
+/* ─── 모바일 공통 레이아웃 ─── */
+@media (max-width: 768px) {
+  /* 페이지 바깥 여백 축소 (인라인 padding 덮어쓰기) */
+  .page-container {
+    padding: 16px 12px !important;
+  }
+  /* 카드 내부 여백 축소 */
+  .page-container .ant-card-body {
+    padding: 16px 12px;
+  }
+}

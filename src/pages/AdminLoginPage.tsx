@@ -26,7 +26,7 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div style={{ maxWidth: 360, margin: "120px auto", padding: 20 }}>
+    <div style={{ width: "100%", maxWidth: 360, margin: "10vh auto", padding: 16, boxSizing: "border-box" }}>
       <Card title="관리자 로그인">
         <Input.Password
           placeholder="비밀번호"

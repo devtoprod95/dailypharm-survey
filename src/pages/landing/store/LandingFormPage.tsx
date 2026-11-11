@@ -580,7 +580,7 @@ export default function LandingFormPage() {
   );
 
   return (
-    <div style={{ padding: "40px 20px", maxWidth: "800px", margin: "0 auto" }}>
+    <div className="page-container" style={{ padding: "40px 20px", maxWidth: "800px", margin: "0 auto" }}>
       <LoadingOverlay
         open={loading}
         message={loadingMsg || (id ? "수정하는 중..." : "등록하는 중...")}
@@ -916,12 +916,12 @@ export default function LandingFormPage() {
           {/* 제목 및 소제목 설정 */}
           <Card size="small" style={{ marginTop: 20, backgroundColor: '#fcfcfc' }}>
             <Row gutter={16} align="middle">
-              <Col span={5}>
+              <Col xs={24} md={5}>
                 <Form.Item name="show_title" valuePropName="checked" noStyle>
                   <Checkbox>제목 노출</Checkbox>
                 </Form.Item>
               </Col>
-              <Col span={19}>
+              <Col xs={24} md={19}>
                 <Form.Item name="title" label="메인 제목" style={{ marginBottom: 12 }}>
                   <Input />
                 </Form.Item>
@@ -929,12 +929,12 @@ export default function LandingFormPage() {
             </Row>
             
             <Row gutter={16} align="middle">
-              <Col span={5}>
+              <Col xs={24} md={5}>
                 <Form.Item name="show_subtitle" valuePropName="checked" noStyle>
                   <Checkbox>소제목 노출</Checkbox>
                 </Form.Item>
               </Col>
-              <Col span={19}>
+              <Col xs={24} md={19}>
                 <Form.Item name="subtitle" label="소제목 (혜택 강조 문구)" style={{ marginBottom: 0 }}>
                   <Input />
                 </Form.Item>
@@ -1280,12 +1280,12 @@ export default function LandingFormPage() {
 
           <Card size="small" style={{ marginBottom: 16, backgroundColor: '#fff1f0', borderColor: '#ffa39e' }}>
             <Row gutter={16} align="middle">
-              <Col span={5}>
+              <Col xs={24} md={5}>
                 <Form.Item name="show_disagree_notice" valuePropName="checked" noStyle>
                   <Checkbox><Text type="danger" strong>경고 노출</Text></Checkbox>
                 </Form.Item>
               </Col>
-              <Col span={19}>
+              <Col xs={24} md={19}>
                 <Form.Item 
                   name="disagree_notice_text" 
                   label={<Text type="danger" style={{ fontSize: '12px' }}>미동의 시 안내 (빨간색 문구)</Text>} 
@@ -1299,10 +1299,10 @@ export default function LandingFormPage() {
 
           <Card size="small" style={{ marginBottom: 16, backgroundColor: '#fbfbfb' }}>
             <Row gutter={16} align="middle">
-              <Col span={5}>
+              <Col xs={24} md={5}>
                 <Form.Item name="show_footer_notice1" valuePropName="checked" noStyle><Checkbox>하단 노출1</Checkbox></Form.Item>
               </Col>
-              <Col span={19}>
+              <Col xs={24} md={19}>
                 <Form.Item name="footer_notice_text1" label="최하단 안내 문구1" style={{ margin: 0 }}><Input /></Form.Item>
               </Col>
             </Row>
@@ -1310,10 +1310,10 @@ export default function LandingFormPage() {
 
           <Card size="small" style={{ backgroundColor: '#fbfbfb' }}>
             <Row gutter={16} align="middle">
-              <Col span={5}>
+              <Col xs={24} md={5}>
                 <Form.Item name="show_footer_notice2" valuePropName="checked" noStyle><Checkbox>하단 노출2</Checkbox></Form.Item>
               </Col>
-              <Col span={19}>
+              <Col xs={24} md={19}>
                 <Form.Item name="footer_notice_text2" label="최하단 안내 문구2" style={{ margin: 0 }}><Input /></Form.Item>
               </Col>
             </Row>

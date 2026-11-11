@@ -142,10 +142,12 @@ export default function LandingListPage() {
     {
       title: "관리",
       key: "action",
-      width: 180, 
+      width: 180,
+      fixed: "right" as const,
       render: (_: any, record: any) => (
-        <Space size="small">
+        <Space orientation="vertical" size="small" style={{ width: "100%" }}>
           <Button 
+            block
             type="primary"
             icon={<ExternalLink size={14} />} 
             style={{ backgroundColor: '#5b8def', borderColor: '#5b8def' }}
@@ -154,7 +156,7 @@ export default function LandingListPage() {
             랜딩 이동
           </Button>
           
-          <Button danger icon={<Trash2 size={14} />} onClick={(e) => { e.stopPropagation(); handleDelete(record.id, record.name); }}>삭제</Button>
+          <Button block danger icon={<Trash2 size={14} />} onClick={(e) => { e.stopPropagation(); handleDelete(record.id, record.name); }}>삭제</Button>
         </Space>
       ),
     },
@@ -164,10 +166,10 @@ export default function LandingListPage() {
   const pagedList = list.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
-    <div style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto" }}>
+    <div className="page-container" style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto" }}>
       <LoadingOverlay open={deleting} message={deleteMsg} description="잠시만 기다려 주세요" />
       <Card variant="borderless" className="shadow-sm">
-        <Space style={{ justifyContent: "space-between", width: "100%", marginBottom: 20 }}>
+        <Space wrap style={{ justifyContent: "space-between", width: "100%", marginBottom: 20 }}>
           <Title level={3} style={{ margin: 0 }}>랜딩 관리</Title>
           <Button type="primary" icon={<Plus size={14} />} onClick={() => navigate("/landing/store")} style={{ backgroundColor: '#27ae60', borderColor: '#27ae60' }}>
             랜딩 페이지 등록
@@ -184,6 +186,7 @@ export default function LandingListPage() {
             style: { cursor: 'pointer' },
           })}
           pagination={false}
+          scroll={{ x: "max-content" }}
         />
 
         {/* 페이지네이션 (설문 리스트와 통일) */}

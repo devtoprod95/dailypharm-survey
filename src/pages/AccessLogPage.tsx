@@ -1,9 +1,10 @@
+import type React from "react";
 import { Navigate } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   collection, deleteDoc, doc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, where, writeBatch,
 } from "firebase/firestore";
-import { Button, Input, Popconfirm, Switch, Table, Tag, Typography, message } from "antd";
+import { Button, Grid, Input, Popconfirm, Switch, Table, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { db } from "../lib/firebase";
 import { ACCESS_LOG_COLLECTION, IP_SETTING_COLLECTION, getClientIp } from "../lib/tracker";
@@ -54,6 +55,9 @@ const fmt = (d: Date | null) =>
   );
 
 function LogView() {
+  // 모바일(md 미만) 여부: 레이아웃과 컬럼 구성을 바꾼다.
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const [logs, setLogs] = useState<AccessLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState("");
@@ -293,8 +297,9 @@ function LogView() {
     {
       title: "관리",
       key: "actions",
+      fixed: "right" as const,
       render: (_, g) => (
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 120 }}>
         <Popconfirm
           title={`${g.ip} 전송된 로그 ${g.sentCount}건을 삭제할까요?`}
           description="텔레그램 전송이 끝난 로그만 삭제합니다. 대기 중인 로그는 유지됩니다."
@@ -304,7 +309,7 @@ function LogView() {
           onConfirm={() => deleteSentLogsOf(g.ip)}
           disabled={g.sentCount === 0}
         >
-          <Button size="small" danger disabled={g.sentCount === 0}>
+          <Button block size="small" danger disabled={g.sentCount === 0}>
             전송됨 삭제
           </Button>
         </Popconfirm>
@@ -317,7 +322,7 @@ function LogView() {
           onConfirm={() => deleteIpLogs(g.ip)}
           disabled={g.count === 0}
         >
-          <Button size="small" danger disabled={g.count === 0}>
+          <Button block size="small" danger disabled={g.count === 0}>
             로그 삭제
           </Button>
         </Popconfirm>
@@ -329,7 +334,7 @@ function LogView() {
           okButtonProps={{ danger: true }}
           onConfirm={() => deleteIp(g.ip)}
         >
-          <Button size="small" type="primary" danger>
+          <Button block size="small" type="primary" danger>
             IP 삭제
           </Button>
         </Popconfirm>
@@ -379,41 +384,60 @@ function LogView() {
     },
   ];
 
+  // 모바일에서는 보조 집계 컬럼(페이지/활동)을 숨겨 가로 공간을 확보한다.
+  const visibleColumns = columns;
+
+  const groupStyle: React.CSSProperties = {
+    display: "flex",
+    gap: 8,
+    flex: isMobile ? "1 1 100%" : "0 1 auto",
+  };
+
   return (
-    <div style={{ padding: "40px 20px", maxWidth: 1100, margin: "0 auto" }}>
+    <div style={{ padding: isMobile ? "20px 12px" : "40px 20px", maxWidth: 1100, margin: "0 auto" }}>
       {msgHolder}
-      <Title level={3}>방문자 모니터링 (IP별 접근/활동)</Title>
-      <Text type="secondary">최근 {MAX_LOGS}건 기준 · 제외: / , /landing/view/* (랜딩 상세 전체)</Text>
-      <div style={{ display: "flex", gap: 8, margin: "16px 0" }}>
-        <Input
-          allowClear
-          placeholder="IP 검색"
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          style={{ maxWidth: 260 }}
-        />
-        <Button onClick={load} loading={loading}>
-          새로고침
-        </Button>
-        <Input
-          placeholder="IP 직접 추가 (모니터링 제외로 등록)"
-          value={newIp}
-          onChange={(e) => setNewIp(e.target.value)}
-          onPressEnter={addIpSetting}
-          style={{ maxWidth: 260, marginLeft: "auto" }}
-        />
-        <Button onClick={addIpSetting}>추가</Button>
-        <Button onClick={addMyIp}>내 IP 제외 등록</Button>
-        <Button danger onClick={() => setAccessAuthed(false)}>
-          로그아웃
-        </Button>
+      <Title level={isMobile ? 4 : 3} style={{ marginTop: 0 }}>
+        방문자 모니터링 (IP별 접근/활동)
+      </Title>
+      <Text type="secondary" style={{ fontSize: isMobile ? 12 : 14 }}>
+        최근 {MAX_LOGS}건 기준 · 제외: / , /landing/view/* (랜딩 상세 전체)
+      </Text>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "16px 0" }}>
+        <div style={groupStyle}>
+          <Input
+            allowClear
+            placeholder="IP 검색"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            style={{ flex: 1, minWidth: 0, maxWidth: isMobile ? undefined : 260 }}
+          />
+          <Button onClick={load} loading={loading}>
+            새로고침
+          </Button>
+          <Button danger onClick={() => setAccessAuthed(false)}>
+            로그아웃
+          </Button>
+        </div>
+        <div style={{ ...groupStyle, marginLeft: isMobile ? 0 : "auto" }}>
+          <Input
+            placeholder="IP 직접 추가 (제외로 등록)"
+            value={newIp}
+            onChange={(e) => setNewIp(e.target.value)}
+            onPressEnter={addIpSetting}
+            style={{ flex: 1, minWidth: 0, maxWidth: isMobile ? undefined : 260 }}
+          />
+          <Button onClick={addIpSetting}>추가</Button>
+          <Button onClick={addMyIp}>{isMobile ? "내 IP" : "내 IP 제외 등록"}</Button>
+        </div>
       </div>
       <Table<IpGroup>
         rowKey="ip"
+        size={isMobile ? "small" : "middle"}
         loading={loading}
-        columns={columns}
+        columns={visibleColumns}
         dataSource={groups}
-        pagination={{ pageSize: 20 }}
+        scroll={{ x: "max-content" }}
+        pagination={{ pageSize: 20, simple: isMobile, showSizeChanger: false }}
         expandable={{
           expandedRowRender: (g) => (
             <Table<AccessLog>
@@ -421,9 +445,14 @@ function LogView() {
               size="small"
               columns={logColumns}
               dataSource={g.logs}
-              pagination={{ pageSize: 10 }}
+              scroll={{ x: "max-content" }}
+              pagination={{ pageSize: 10, simple: isMobile, showSizeChanger: false }}
               expandable={{
-                expandedRowRender: (l) => <Text type="secondary">{l.userAgent}</Text>,
+                expandedRowRender: (l) => (
+                  <Text type="secondary" style={{ wordBreak: "break-all" }}>
+                    {l.userAgent}
+                  </Text>
+                ),
               }}
             />
           ),

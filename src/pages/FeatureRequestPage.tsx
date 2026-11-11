@@ -150,7 +150,7 @@ function FeatureRequestContent() {
   };
 
   return (
-    <div style={{ padding: "40px 20px", maxWidth: "900px", margin: "0 auto" }}>
+    <div className="page-container" style={{ padding: "40px 20px", maxWidth: "900px", margin: "0 auto" }}>
       {/* 작성 폼 */}
       <Card variant="borderless" className="shadow-sm" style={{ marginBottom: 24 }}>
         <Space align="center" style={{ marginBottom: 4 }}>
@@ -226,7 +226,7 @@ function FeatureRequestContent() {
 
       {/* 목록 */}
       <Card variant="borderless" className="shadow-sm">
-        <Space style={{ justifyContent: "space-between", width: "100%", marginBottom: 16 }}>
+        <Space wrap style={{ justifyContent: "space-between", width: "100%", marginBottom: 16 }}>
           <Title level={4} style={{ margin: 0 }}>
             접수된 요청 <Text type="secondary" style={{ fontSize: 14 }}>({list.length})</Text>
           </Title>
