@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { trackAction } from "../../lib/tracker";
 import { useNavigate } from "react-router-dom";
 import { collection, getDocs, deleteDoc, doc, query, orderBy, writeBatch } from "firebase/firestore";
 import { db } from "../../lib/firebase";
@@ -68,6 +69,7 @@ export default function LandingListPage() {
       setDeleteMsg("설문지를 삭제하는 중...");
       await deleteDoc(doc(db, "survey_list", id));
 
+      trackAction("랜딩 삭제", name);
       alert("삭제되었습니다."); 
       setCurrentPage(1);
       fetchList();

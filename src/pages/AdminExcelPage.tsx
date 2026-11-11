@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { trackAction } from "../lib/tracker";
 import { useSearchParams } from "react-router-dom";
 import { db } from "../lib/firebase";
 import {
@@ -324,6 +325,7 @@ function ExcelPageContent() {
       setLoading(true);
       await deleteDoc(doc(db, selectedCollectionName, id));
       
+      trackAction("설문 응답 삭제", `${selectedCollectionName}/${id}`);
       alert("성공적으로 삭제되었습니다.");
       
       // 가장 확실하고 간단하게 새로고침 처리
@@ -344,6 +346,7 @@ function ExcelPageContent() {
         selectedRowKeys.map((id) => deleteDoc(doc(db, selectedCollectionName, String(id))))
       );
       
+      trackAction("설문 응답 일괄 삭제", `${selectedCollectionName} ${selectedRowKeys.length}건`);
       alert(`${selectedRowKeys.length}건의 데이터가 삭제되었습니다.`);
       
       // 일괄 삭제 후에도 똑같이 새로고침
@@ -359,6 +362,7 @@ function ExcelPageContent() {
   // ─── CSV 다운로드 ────────────────────────────────────────────────
   const executeDownload = async () => {
     if (!selectedCollectionName) return;
+    trackAction("CSV 다운로드", selectedCollectionName);
     setLoading(true);
     try {
       // 🔥 부분검색과 동일하게: 전체 로드 후 검색어가 있으면 클라이언트에서 contains 필터링

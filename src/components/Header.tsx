@@ -1,15 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import { PAGE_LIST } from '../config/pages';
 import { useNavigate } from 'react-router-dom';
+import { ACCESS_AUTH_EVENT, isAccessAuthed, setAccessAuthed } from '../lib/accessAuth';
 
 const Header = () => {
     const navigate = useNavigate(); // 2. navigate 함수 생성
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [authed, setAuthed] = useState(isAccessAuthed());
+
+    // 접근 로그 로그인 성공/해제 시 메뉴 노출 갱신
+    useEffect(() => {
+        const sync = () => setAuthed(isAccessAuthed());
+        window.addEventListener(ACCESS_AUTH_EVENT, sync);
+        return () => window.removeEventListener(ACCESS_AUTH_EVENT, sync);
+    }, []);
 
     // 헤더에 표시할 메뉴 필터링 (메인 제외 + 개발용 필터)
     const visibleMenus = PAGE_LIST.filter(page => 
-        page.showInHeader && (!page.devOnly || import.meta.env.DEV)
+        page.showInHeader && (!page.devOnly || import.meta.env.DEV) && (!page.requiresAuth || authed) && !(page.hideWhenAuth && authed)
     );
 
     // 새 창 열기 핸들러
@@ -19,6 +28,11 @@ const Header = () => {
         } else {
           navigate(path);
         }
+        setIsMenuOpen(false);
+    };
+
+    const handleLogout = () => {
+        setAccessAuthed(false); // 메뉴 숨김 + 모니터링 페이지에 있으면 로그인 화면으로 이동
         setIsMenuOpen(false);
     };
 
@@ -45,6 +59,14 @@ const Header = () => {
                                 {page.title}
                             </button>
                         ))}
+                        {authed && (
+                            <button
+                                onClick={handleLogout}
+                                className="text-sm font-medium text-red-500 hover:text-red-600"
+                            >
+                                로그아웃
+                            </button>
+                        )}
                     </nav>
 
                     <div className="md:hidden">
@@ -67,6 +89,14 @@ const Header = () => {
                             {page.title}
                         </button>
                     ))}
+                    {authed && (
+                        <button
+                            onClick={handleLogout}
+                            className="w-full text-left block px-3 py-2 text-base font-medium text-red-500 hover:bg-red-50 rounded-md"
+                        >
+                            로그아웃
+                        </button>
+                    )}
                 </div>
             )}
         </header>

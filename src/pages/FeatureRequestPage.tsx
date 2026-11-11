@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { trackAction } from "../lib/tracker";
 import { db } from "../lib/firebase";
 import {
   collection, addDoc, getDocs, query, orderBy, serverTimestamp, deleteDoc, doc,
@@ -116,6 +117,7 @@ function FeatureRequestContent() {
         ip,
         created_at: serverTimestamp(),
       });
+      trackAction("건의 등록", `[${REQUEST_TYPES[values.type]?.label || values.type}] ${values.title.trim()}`);
       msg.success("건의가 등록되었습니다. 감사합니다!");
       form.resetFields();
       fetchList();
@@ -138,6 +140,7 @@ function FeatureRequestContent() {
   const handleDelete = async (id: string) => {
     try {
       await deleteDoc(doc(db, COLLECTION, id));
+      trackAction("건의 삭제", id);
       msg.success("삭제되었습니다.");
       fetchList();
     } catch (e) {

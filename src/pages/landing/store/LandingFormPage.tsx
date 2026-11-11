@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { trackAction } from "../../../lib/tracker";
 import { useParams, useNavigate } from "react-router-dom";
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { db, getGithubToken } from "../../../lib/firebase"; 
@@ -547,6 +548,7 @@ export default function LandingFormPage() {
  
       setLoadingMsg(isEditMode ? "변경 내용을 저장하는 중..." : "설문지를 등록하는 중...");
       await setDoc(doc(db, "survey_list", targetDocId), savePayload);
+      trackAction("랜딩 저장", targetDocId);
   
       let alertText = isEditMode ? "수정되었습니다." : "등록되었습니다.";
       if (hasNewUploads) {

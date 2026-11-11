@@ -11,9 +11,14 @@ import { PAGE_LIST } from './config/pages';
 import Layout from './components/Layout.tsx'
 import LandingListPage from './pages/landing/LandingListPage.tsx'
 import LandingDetailPage from './pages/landing/view/LandingDetailPage.tsx'
+import TrackerLayout from './components/TrackerLayout.tsx'
+import AdminLoginPage from './pages/AdminLoginPage.tsx'
+import AccessLogPage from './pages/AccessLogPage.tsx'
 import LandingFormPage from './pages/landing/store/LandingFormPage.tsx'
 
-const router = createHashRouter([
+const router = createHashRouter([{
+  element: <TrackerLayout />,
+  children: [
   // 💡 1. 샵(#) 뒤에 아무것도 없는 기본 진입시 최신 리다이렉트 컴포넌트 실행
   {
     path: "/",
@@ -31,7 +36,9 @@ const router = createHashRouter([
             page.path === "/landing" ? <LandingListPage /> :
             page.path === "/deploy" ? <Deploy /> :
             page.path === "/excel-down" ? <AdminExcelPage /> :
-            page.path === "/feature-request" ? <FeatureRequestPage /> : <FirebaseTest />
+            page.path === "/feature-request" ? <FeatureRequestPage /> :
+            page.path === "/access-logs" ? <AccessLogPage /> :
+            page.path === "/admin-login" ? <AdminLoginPage /> : <FirebaseTest />
           }
         </Layout>
       )
@@ -60,7 +67,8 @@ const router = createHashRouter([
     path: "/landing/view/:id",
     element: <LandingDetailPage />
   }
-]); // 💡 무한 루프 원인인 basename: "/dailypharm-survey" 옵션을 과감히 제거했습니다!
+  ]
+}]); // 💡 무한 루프 원인인 basename: "/dailypharm-survey" 옵션을 과감히 제거했습니다!
 
 createRoot(document.getElementById('root')!).render(
   <RouterProvider router={router} />

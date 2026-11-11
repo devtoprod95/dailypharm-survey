@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { trackAction } from "../../../lib/tracker";
 import { useParams, useNavigate } from "react-router-dom";
 import { db } from "../../../lib/firebase"; 
 import { collection, doc, getDoc, addDoc, serverTimestamp } from "firebase/firestore";
@@ -245,6 +246,7 @@ export default function LandingDetailPage() {
         return;
       }
 
+      trackAction("설문 신청 제출", landingData?.name);
       alert("신청이 완료되었습니다.");
       
       // Form 초기화

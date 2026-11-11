@@ -74,6 +74,7 @@ jobs:
           VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
           VITE_TELEGRAM_BOT_TOKEN: ${{ secrets.VITE_TELEGRAM_BOT_TOKEN }}
           VITE_TELEGRAM_CHAT_ID: ${{ secrets.VITE_TELEGRAM_CHAT_ID }}
+          VITE_ACCESS_LOG_PASSWORD: ${{ secrets.VITE_ACCESS_LOG_PASSWORD }}
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

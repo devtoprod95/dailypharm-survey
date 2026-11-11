@@ -1,0 +1,29 @@
+name: Access Log Cleanup
+
+# 7일 지난 접근/활동 로그(access_logs)를 매일 삭제한다. (UTC 18:00 = KST 03:00)
+# 주의: schedule 은 기본 브랜치(main)의 워크플로 파일 기준으로만 동작한다.
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/access-digest
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Delete logs older than 7 days
+        working-directory: scripts/access-digest
+        run: python cleanup.py
+        env:
+          RETENTION_DAYS: "7"
+          FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}

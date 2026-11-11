@@ -1,0 +1,37 @@
+name: Access Digest (Telegram)
+
+# 배포와 무관하게 주기적으로 실행되는 배치. (테스트: 1분 설정, 안정화 후 "*/5 * * * *" 권장)
+# 쌓인 접근/활동 로그(access_logs, notified=false)를 모아 텔레그램으로 한 번에 보낸다.
+# 주의: schedule 은 기본 브랜치(main)의 워크플로 파일 기준으로만 동작한다.
+on:
+  schedule:
+    # 주의: GitHub Actions 는 최소 5분 간격이라 1분으로 써도 실제로는 5분 이상 간격/지연으로 실행될 수 있다.
+    - cron: "* * * * *"
+  workflow_dispatch: {}
+
+# 이전 실행이 길어져도 겹치지 않게 (중복 발송 방지)
+concurrency:
+  group: access-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/access-digest
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Send digest
+        working-directory: scripts/access-digest
+        run: python main.py
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.VITE_TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.VITE_TELEGRAM_CHAT_ID }}
