@@ -137,10 +137,10 @@ function FeatureRequestContent() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, title: string) => {
     try {
       await deleteDoc(doc(db, COLLECTION, id));
-      trackAction("건의 삭제", id);
+      trackAction("건의 삭제", title);
       msg.success("삭제되었습니다.");
       fetchList();
     } catch (e) {
@@ -290,7 +290,7 @@ function FeatureRequestContent() {
                     <Popconfirm
                       title="삭제하시겠습니까?"
                       description="삭제된 건의는 복구할 수 없습니다."
-                      onConfirm={() => handleDelete(item.id)}
+                      onConfirm={() => handleDelete(item.id, item.title)}
                       okText="삭제"
                       cancelText="취소"
                       okButtonProps={{ danger: true }}

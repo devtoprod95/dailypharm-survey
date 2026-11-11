@@ -15,7 +15,7 @@ API_KEY = os.environ["FIREBASE_API_KEY"]
 RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "7"))
 
 BASE = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents"
-PAGE = 300  # batchWrite 한도(500) 이내
+PAGE = 300  # commit 한도(500) 이내
 
 
 def _post(url, body):
@@ -48,7 +48,7 @@ def main():
         names = fetch_old(cutoff_iso)
         if not names:
             break
-        _post(f"{BASE}:batchWrite?key={API_KEY}", {"writes": [{"delete": n} for n in names]})
+        _post(f"{BASE}:commit?key={API_KEY}", {"writes": [{"delete": n} for n in names]})
         total += len(names)
     print(json.dumps({"cutoff": cutoff_iso, "deleted": total}))
 

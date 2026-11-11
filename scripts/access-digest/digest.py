@@ -85,7 +85,7 @@ def mark_notified(docs):
         "updateMask": {"fieldPaths": ["notified"]},
     } for d in docs]
     for i in range(0, len(writes), 200):
-        _request(f"{BASE}:batchWrite?key={API_KEY}", {"writes": writes[i:i + 200]})
+        _request(f"{BASE}:commit?key={API_KEY}", {"writes": writes[i:i + 200]})
 
 
 def send_telegram(text):
@@ -99,34 +99,55 @@ def _kst(ts):
     return datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(KST)
 
 
+def _label(r):
+    """한 줄 표시 내용. 활동은 '⚡ 활동명 (상세)', 페이지는 한글 페이지명"""
+    if r["type"] == "action":
+        return f"⚡ {r['action']}" + (f" ({r['detail']})" if r["detail"] else "")
+    return r["title"]
+
+
 def build_messages(rows):
+    """IP별로 묶고, 각 IP 안에서는 시간순(HH:MM)으로 한 줄씩 보여준다.
+    같은 항목이 연속되면 한 줄로 합쳐 ×N 으로 표시한다."""
     rows.sort(key=lambda r: r["at"])
     by_ip = OrderedDict()
     for r in rows:
-        if r["type"] == "action":
-            label = f"[활동] {r['action']}" + (f"({r['detail']})" if r["detail"] else "") + f" @ {r['title']}"
-        else:
-            label = r["title"]
-        counts = by_ip.setdefault(r["ip"], OrderedDict())
-        counts[label] = counts.get(label, 0) + 1
+        by_ip.setdefault(r["ip"], []).append(r)
 
     header = (
-        f"📊 <b>방문 요약</b> ({rows[0]['at']:%H:%M}~{rows[-1]['at']:%H:%M}, "
+        f"📊 <b>방문 요약</b> ({rows[0]['at']:%H:%M}~{rows[-1]['at']:%H:%M} · "
         f"{len(rows)}건 / {len(by_ip)}개 IP)"
     )
-    blocks = []
-    for ip, counts in by_ip.items():
-        items = "\n".join(
-            f"   - {html.escape(l)}" + (f" ×{n}" if n > 1 else "") for l, n in counts.items()
-        )
-        blocks.append(f"• <b>{html.escape(ip)}</b> ({sum(counts.values())}건)\n{items}")
+    cont_header = "📊 <b>방문 요약 (계속)</b>"
+
+    # (IP 제목줄, [내용 줄...]) 형태로 만든 뒤 길이에 맞춰 메시지로 분할
+    sections = []
+    for ip, items in by_ip.items():
+        merged = []  # [시각, 라벨, 횟수]
+        for r in items:
+            label = _label(r)
+            if merged and merged[-1][1] == label:
+                merged[-1][2] += 1
+            else:
+                merged.append([r["at"], label, 1])
+        lines = [
+            f"{t:%H:%M} {html.escape(l)}" + (f" ×{n}" if n > 1 else "")
+            for t, l, n in merged
+        ]
+        sections.append((f"📍 <b>{html.escape(ip)}</b> ({len(items)}건)", lines))
 
     messages, cur = [], header
-    for b in blocks:
-        if len(cur) + len(b) + 2 > MAX_MESSAGE_LEN:
+    for title, lines in sections:
+        block_title = title
+        if len(cur) + len(block_title) + 2 > MAX_MESSAGE_LEN:
             messages.append(cur)
-            cur = "📊 <b>방문 요약 (계속)</b>"
-        cur += f"\n\n{b}"
+            cur = cont_header
+        cur += f"\n\n{block_title}"
+        for line in lines:
+            if len(cur) + len(line) + 1 > MAX_MESSAGE_LEN:
+                messages.append(cur)
+                cur = f"{cont_header}\n\n{title} (계속)"
+            cur += f"\n{line}"
     messages.append(cur)
     return messages
 
