@@ -100,10 +100,10 @@ def _kst(ts):
 
 
 def _label(r):
-    """한 줄 표시 내용. 활동은 '⚡ 활동명 (상세)', 페이지는 한글 페이지명"""
+    """한 줄 표시 내용. '[페이지] 한글 페이지명' / '[활동] 활동명 (상세)'"""
     if r["type"] == "action":
-        return f"⚡ {r['action']}" + (f" ({r['detail']})" if r["detail"] else "")
-    return r["title"]
+        return f"[활동] {r['action']}" + (f" ({r['detail']})" if r["detail"] else "")
+    return f"[페이지] {r['title']}"
 
 
 def build_messages(rows):

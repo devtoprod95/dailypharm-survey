@@ -23,6 +23,8 @@ interface AccessLog {
   action: string;
   detail: string;
   userAgent: string;
+  /** 텔레그램 요약 발송 처리 여부 (false = 발송 대기) */
+  notified: boolean;
   time: Date | null;
 }
 
@@ -31,6 +33,10 @@ interface IpGroup {
   count: number;
   pageCount: number;
   actionCount: number;
+  /** 텔레그램 발송 대기 중인 로그 수 */
+  pendingCount: number;
+  /** 텔레그램 전송 완료된 로그 수 */
+  sentCount: number;
   lastAt: Date | null;
   excluded: boolean;
   logs: AccessLog[];
@@ -81,6 +87,7 @@ function LogView() {
             action: data.action ?? "",
             detail: data.detail ?? "",
             userAgent: data.userAgent ?? "",
+            notified: data.notified === true,
             time: data.created_at?.toDate?.() ?? null,
           } as AccessLog;
         })
@@ -132,6 +139,34 @@ function LogView() {
     } catch (e) {
       console.error(e);
       msg.error("IP 삭제에 실패했습니다.");
+    }
+  };
+
+  /** 특정 IP의 텔레그램 전송 완료(notified == true) 로그만 삭제. 대기 로그는 유지 */
+  const deleteSentLogsOf = async (ip: string) => {
+    try {
+      let total = 0;
+      for (;;) {
+        const snap = await getDocs(
+          query(
+            collection(db, ACCESS_LOG_COLLECTION),
+            where("ip", "==", ip),
+            where("notified", "==", true),
+            limit(500)
+          )
+        );
+        if (snap.empty) break;
+        const batch = writeBatch(db);
+        snap.docs.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+        total += snap.size;
+        if (snap.size < 500) break;
+      }
+      msg.success(`${ip} 전송된 로그 ${total}건을 삭제했습니다.`);
+      await load();
+    } catch (e) {
+      console.error(e);
+      msg.error("삭제에 실패했습니다.");
     }
   };
 
@@ -189,18 +224,20 @@ function LogView() {
     for (const log of logs) {
       let g = map.get(log.ip);
       if (!g) {
-        g = { ip: log.ip, count: 0, pageCount: 0, actionCount: 0, lastAt: log.time, excluded: false, logs: [] };
+        g = { ip: log.ip, count: 0, pageCount: 0, actionCount: 0, pendingCount: 0, sentCount: 0, lastAt: log.time, excluded: false, logs: [] };
         map.set(log.ip, g);
       }
       g.count++;
       if (log.type === "page") g.pageCount++;
       else g.actionCount++;
+      if (log.notified) g.sentCount++;
+      else g.pendingCount++;
       g.logs.push(log); // logs 는 최신순이므로 그대로 최신순 유지
     }
     // 로그는 없지만 설정만 있는 IP도 목록에 포함
     for (const ip of Object.keys(excluded)) {
       if (!map.has(ip)) {
-        map.set(ip, { ip, count: 0, pageCount: 0, actionCount: 0, lastAt: null, excluded: false, logs: [] });
+        map.set(ip, { ip, count: 0, pageCount: 0, actionCount: 0, pendingCount: 0, sentCount: 0, lastAt: null, excluded: false, logs: [] });
       }
     }
     for (const g of map.values()) {
@@ -233,6 +270,20 @@ function LogView() {
     { title: "페이지", dataIndex: "pageCount", key: "pageCount" },
     { title: "활동", dataIndex: "actionCount", key: "actionCount" },
     {
+      title: "텔레그램",
+      key: "pending",
+      render: (_, g) =>
+        g.count === 0 ? (
+          "-"
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+            {g.pendingCount > 0 && <Tag color="red">대기 {g.pendingCount}건</Tag>}
+            {g.sentCount > 0 && <Tag color="green">전송됨 {g.sentCount}건</Tag>}
+          </div>
+        ),
+      sorter: (a, b) => a.pendingCount - b.pendingCount,
+    },
+    {
       title: "마지막 접속",
       key: "lastAt",
       render: (_, g) => fmt(g.lastAt),
@@ -244,6 +295,19 @@ function LogView() {
       key: "actions",
       render: (_, g) => (
         <div style={{ display: "flex", gap: 6 }}>
+        <Popconfirm
+          title={`${g.ip} 전송된 로그 ${g.sentCount}건을 삭제할까요?`}
+          description="텔레그램 전송이 끝난 로그만 삭제합니다. 대기 중인 로그는 유지됩니다."
+          okText="삭제"
+          cancelText="취소"
+          okButtonProps={{ danger: true }}
+          onConfirm={() => deleteSentLogsOf(g.ip)}
+          disabled={g.sentCount === 0}
+        >
+          <Button size="small" danger disabled={g.sentCount === 0}>
+            전송됨 삭제
+          </Button>
+        </Popconfirm>
         <Popconfirm
           title={`${g.ip} 로그 ${g.count}건을 모두 삭제할까요?`}
           description="삭제 후 복구할 수 없습니다. (제외 설정은 유지됩니다)"
@@ -288,6 +352,18 @@ function LogView() {
       title: "활동/상세",
       key: "action",
       render: (_, l) => [l.action, l.detail].filter(Boolean).join(" - ") || "-",
+    },
+    {
+      title: "텔레그램",
+      key: "notified",
+      width: 100,
+      render: (_, l) =>
+        l.notified ? <Tag color="green">전송됨</Tag> : <Tag color="red">대기</Tag>,
+      filters: [
+        { text: "전송됨", value: true },
+        { text: "대기", value: false },
+      ],
+      onFilter: (v, l) => l.notified === v,
     },
     {
       title: "",
