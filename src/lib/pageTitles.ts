@@ -16,12 +16,11 @@ export function getPageTitle(path: string): string {
   if (STATIC_TITLES[p]) return STATIC_TITLES[p];
 
   let m = p.match(/^\/landing\/store\/(.+)$/);
-  if (m) return `랜딩 수정 (${decodeURIComponent(m[1])})`;
+  if (m) return "랜딩 수정"; // 설문지명은 tracker 에서 Firestore 조회 후 붙인다. (문서 ID 노출 금지)
 
   m = p.match(/^\/landing\/view\/(.+)$/);
   if (m) {
-    const id = decodeURIComponent(m[1]);
-    return id === "preview" ? "랜딩 미리보기" : `랜딩 상세 (${id})`;
+    return m[1] === "preview" ? "랜딩 미리보기" : "랜딩 상세";
   }
   return p;
 }

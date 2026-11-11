@@ -548,7 +548,7 @@ export default function LandingFormPage() {
  
       setLoadingMsg(isEditMode ? "변경 내용을 저장하는 중..." : "설문지를 등록하는 중...");
       await setDoc(doc(db, "survey_list", targetDocId), savePayload);
-      trackAction("랜딩 저장", targetDocId);
+      trackAction("랜딩 저장", fieldNameValue || targetDocId);
   
       let alertText = isEditMode ? "수정되었습니다." : "등록되었습니다.";
       if (hasNewUploads) {

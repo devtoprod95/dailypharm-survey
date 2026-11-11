@@ -6,6 +6,9 @@ import { addDoc, collection, doc, getDoc, serverTimestamp } from "firebase/fires
 import { db } from "./firebase";
 import { getPageTitle } from "./pageTitles";
 
+const SURVEY_LIST_COLLECTION = "survey_list";
+const PREVIEW_PATH = "/landing/view/preview";
+
 export const ACCESS_LOG_COLLECTION = "access_logs";
 /**
  * IP별 설정 컬렉션. 문서 ID = IP
@@ -29,11 +32,12 @@ export function normalizePath(path: string): string {
   return pure.length > 1 ? pure.replace(/\/+$/, "") : pure || "/";
 }
 
-/** 공개 랜딩 상세(/landing/view/*)는 모두 추적 제외 */
+/** 공개 랜딩 상세(/landing/view/*)는 추적 제외. 단, 미리보기(/landing/view/preview)는 예외 */
 const EXCLUDED_PREFIXES = ["/landing/view/"];
 
 export function isExcludedPath(path: string): boolean {
   const p = normalizePath(path);
+  if (p === PREVIEW_PATH) return false; // 미리보기는 추적 (설문지명과 함께 기록)
   return EXCLUDED_PATHS.has(p) || EXCLUDED_PREFIXES.some((prefix) => p.startsWith(prefix));
 }
 
@@ -99,6 +103,27 @@ async function isTrackingEnabled(ip: string): Promise<boolean> {
   return enabled;
 }
 
+/** 경로 → 한글 페이지명. 랜딩 수정/미리보기는 문서 ID 대신 설문지명을 붙인다. */
+async function resolvePageTitle(path: string): Promise<string> {
+  const base = getPageTitle(path);
+  try {
+    const m = path.match(/^\/landing\/store\/(.+)$/);
+    if (m) {
+      const snap = await getDoc(doc(db, SURVEY_LIST_COLLECTION, decodeURIComponent(m[1])));
+      const name = snap.exists() ? (snap.data().name as string | undefined) : undefined;
+      return name ? `${base} (${name})` : base;
+    }
+    if (path === PREVIEW_PATH) {
+      const raw = sessionStorage.getItem("landing_preview");
+      const name = raw ? (JSON.parse(raw).name as string | undefined) : undefined;
+      return name ? `${base} (${name})` : base;
+    }
+  } catch {
+    /* 조회 실패 시 기본 이름 사용 */
+  }
+  return base;
+}
+
 async function record(params: {
   type: LogType;
   path: string;
@@ -116,7 +141,7 @@ async function record(params: {
       type: params.type,
       ip,
       path: params.path,
-      title: getPageTitle(params.path),
+      title: await resolvePageTitle(params.path),
       action: params.action ?? "",
       detail: params.detail ?? "",
       userAgent: navigator.userAgent,

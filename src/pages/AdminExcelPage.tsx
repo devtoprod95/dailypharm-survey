@@ -325,7 +325,7 @@ function ExcelPageContent() {
       setLoading(true);
       await deleteDoc(doc(db, selectedCollectionName, id));
       
-      trackAction("설문 응답 삭제", `${selectedCollectionName}/${id}`);
+      trackAction("설문 응답 삭제", selectedCollectionName);
       alert("성공적으로 삭제되었습니다.");
       
       // 가장 확실하고 간단하게 새로고침 처리
