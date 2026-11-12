@@ -74,3 +74,85 @@ export async function sendFeatureRequestNotice(
     console.warn("[telegram] 알림 전송 중 오류:", e);
   }
 }
+
+
+export interface AccessLogNoticeItem {
+  type: "page" | "action";
+  title: string;
+  action: string;
+  detail: string;
+  time: Date | null;
+}
+
+const MAX_MESSAGE_LEN = 3800; // 텔레그램 4096자 제한 여유
+
+function fmtHm(d: Date | null): string {
+  return d
+    ? d.toLocaleTimeString("ko-KR", { hour12: false, hour: "2-digit", minute: "2-digit" })
+    : "--:--";
+}
+
+function logLabel(l: AccessLogNoticeItem): string {
+  return l.type === "action"
+    ? `[활동] ${l.action}${l.detail ? ` (${l.detail})` : ""}`
+    : `[페이지] ${l.title}`;
+}
+
+/** 로그 목록을 텔레그램 길이 제한에 맞춰 여러 메시지로 만든다. (연속 동일 항목은 ×N 으로 합침) */
+function buildAccessLogMessages(ip: string, logs: AccessLogNoticeItem[]): string[] {
+  // 시간 오름차순
+  const sorted = [...logs].sort((a, b) => (a.time?.getTime() ?? 0) - (b.time?.getTime() ?? 0));
+  const merged: { time: Date | null; label: string; n: number }[] = [];
+  for (const l of sorted) {
+    const label = logLabel(l);
+    const last = merged[merged.length - 1];
+    if (last && last.label === label) last.n++;
+    else merged.push({ time: l.time, label, n: 1 });
+  }
+
+  const title = `📍 <b>${escapeHtml(ip)}</b> (${logs.length}건)`;
+  const header = `📊 <b>방문 기록 (수동 전송)</b>\n${title}`;
+  const contHeader = `📊 <b>방문 기록 (계속)</b>\n${title}`;
+
+  const messages: string[] = [];
+  let cur = header;
+  for (const m of merged) {
+    const line = `${fmtHm(m.time)} ${escapeHtml(m.label)}${m.n > 1 ? ` ×${m.n}` : ""}`;
+    if (cur.length + line.length + 1 > MAX_MESSAGE_LEN) {
+      messages.push(cur);
+      cur = contHeader;
+    }
+    cur += `\n${line}`;
+  }
+  messages.push(cur);
+  return messages;
+}
+
+/**
+ * 특정 IP 의 접근 로그를 텔레그램으로 전송한다.
+ * 알림과 달리 사용자가 직접 누르는 동작이므로, 실패하면 예외를 던진다.
+ */
+export async function sendAccessLogNotice(
+  ip: string,
+  logs: AccessLogNoticeItem[]
+): Promise<void> {
+  if (!BOT_TOKEN || !CHAT_ID) {
+    throw new Error("텔레그램 봇 토큰/챗 ID 가 설정되지 않았습니다.");
+  }
+  for (const text of buildAccessLogMessages(ip, logs)) {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+      }),
+    });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      throw new Error(`텔레그램 전송 실패 (${res.status}) ${errBody}`);
+    }
+  }
+}

@@ -10,6 +10,7 @@ import { db } from "../lib/firebase";
 import { ACCESS_LOG_COLLECTION, IP_SETTING_COLLECTION, getClientIp } from "../lib/tracker";
 import { getPageTitle } from "../lib/pageTitles";
 import { ACCESS_AUTH_EVENT, isAccessAuthed, setAccessAuthed } from "../lib/accessAuth";
+import { sendAccessLogNotice } from "../lib/telegram";
 
 const { Title, Text } = Typography;
 
@@ -65,6 +66,7 @@ function LogView() {
   // IP → 모니터링(로그 기록) 제외 여부
   const [excluded, setExcluded] = useState<Record<string, boolean>>({});
   const [newIp, setNewIp] = useState("");
+  const [sendingIp, setSendingIp] = useState<string | null>(null);
   const [msg, msgHolder] = message.useMessage();
 
   const load = useCallback(async () => {
@@ -171,6 +173,34 @@ function LogView() {
     } catch (e) {
       console.error(e);
       msg.error("삭제에 실패했습니다.");
+    }
+  };
+
+  /** 특정 IP의 대기(notified == false) 로그를 텔레그램으로 전송하고 전송됨으로 표시 */
+  const sendIpLogs = async (ip: string) => {
+    const pending = logs.filter((l) => l.ip === ip && !l.notified);
+    if (pending.length === 0) {
+      msg.info("전송할 대기 로그가 없습니다.");
+      return;
+    }
+    setSendingIp(ip);
+    try {
+      await sendAccessLogNotice(ip, pending);
+      // 전송 성공 후에만 전송됨 표시 (500건 제한 배치)
+      for (let i = 0; i < pending.length; i += 500) {
+        const batch = writeBatch(db);
+        pending.slice(i, i + 500).forEach((l) =>
+          batch.update(doc(db, ACCESS_LOG_COLLECTION, l.id), { notified: true })
+        );
+        await batch.commit();
+      }
+      msg.success(`${ip} 로그 ${pending.length}건을 텔레그램으로 전송했습니다.`);
+      await load();
+    } catch (e) {
+      console.error(e);
+      msg.error(e instanceof Error ? e.message : "텔레그램 전송에 실패했습니다.");
+    } finally {
+      setSendingIp(null);
     }
   };
 
@@ -300,6 +330,16 @@ function LogView() {
       fixed: "right" as const,
       render: (_, g) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 120 }}>
+        <Button
+          block
+          size="small"
+          type="primary"
+          loading={sendingIp === g.ip}
+          disabled={g.pendingCount === 0 || sendingIp !== null}
+          onClick={() => sendIpLogs(g.ip)}
+        >
+          텔레그램 전송
+        </Button>
         <Popconfirm
           title={`${g.ip} 전송된 로그 ${g.sentCount}건을 삭제할까요?`}
           description="텔레그램 전송이 끝난 로그만 삭제합니다. 대기 중인 로그는 유지됩니다."
